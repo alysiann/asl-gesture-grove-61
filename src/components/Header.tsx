@@ -36,7 +36,7 @@ const Header: React.FC = () => {
                 <Link 
                   to={item.path} 
                   className={cn(
-                    "px-4 py-2 rounded-full flex items-center gap-2 transition-all duration-300",
+                    "px-4 py-2 rounded-full flex items-center gap-2 transition-all duration-300 relative",
                     location.pathname === item.path 
                       ? "bg-primary text-white" 
                       : "hover:bg-secondary"
@@ -47,7 +47,7 @@ const Header: React.FC = () => {
                   {location.pathname === item.path && (
                     <motion.div
                       layoutId="nav-indicator"
-                      className="absolute inset-0 rounded-full"
+                      className="absolute inset-0 rounded-full z-[-1]"
                       initial={false}
                       transition={{ type: "spring", duration: 0.5 }}
                     />
