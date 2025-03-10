@@ -32,29 +32,27 @@ const TrainingInfo: React.FC<TrainingInfoProps> = ({ showInfo, onToggleInfo }) =
         </Button>
       </motion.div>
       
-      <AnimatePresence>
-        {showInfo && (
-          <motion.div 
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.3 }}
-            className="glass rounded-xl p-3 sm:p-4 mb-4 sm:mb-6 overflow-hidden"
-          >
-            <h3 className="text-base sm:text-lg font-medium mb-1 sm:mb-2">How to train the ASL recognition system:</h3>
-            <ul className="list-disc list-inside text-xs sm:text-sm text-muted-foreground space-y-1">
-              <li>Select a letter (A-Z) you want to train from the grid</li>
-              <li>Position your hand clearly in the frame, making the corresponding ASL sign</li>
-              <li>Ensure the "Hand Detected" indicator is green</li>
-              <li>Click "Capture Sample" to store the current hand position</li>
-              <li>Capture at least 5-10 samples with slightly different poses for the same letter</li>
-              <li>Click "Save Training Data" when finished with a letter</li>
-              <li>Repeat for each letter you want to train</li>
-              <li>Go to the Recognize page to test your trained model</li>
-            </ul>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {showInfo && (
+        <motion.div 
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          exit={{ opacity: 0, height: 0 }}
+          transition={{ duration: 0.3 }}
+          className="glass rounded-xl p-3 sm:p-4 mb-4 sm:mb-6 overflow-hidden"
+        >
+          <h3 className="text-base sm:text-lg font-medium mb-1 sm:mb-2">How to train the ASL recognition system:</h3>
+          <ul className="list-disc list-inside text-xs sm:text-sm text-muted-foreground space-y-1">
+            <li>Select a letter (A-Z) you want to train from the grid</li>
+            <li>Position your hand clearly in the frame, making the corresponding ASL sign</li>
+            <li>Ensure the "Hand Detected" indicator is green</li>
+            <li>Click "Capture Sample" to store the current hand position</li>
+            <li>Capture at least 5-10 samples with slightly different poses for the same letter</li>
+            <li>Click "Save Training Data" when finished with a letter</li>
+            <li>Repeat for each letter you want to train</li>
+            <li>Go to the Recognize page to test your trained model</li>
+          </ul>
+        </motion.div>
+      )}
     </>
   );
 };

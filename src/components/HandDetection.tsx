@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as handpose from '@tensorflow-models/handpose';
 import '@tensorflow/tfjs-backend-webgl';
 import { motion } from 'framer-motion';
@@ -34,6 +34,8 @@ const HandDetection: React.FC<HandDetectionProps> = ({
   const lastToastTime = useRef<number>(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const predictionLoop = useRef<number | null>(null);
+  const featureExtractionTimeout = useRef<NodeJS.Timeout | null>(null);
+  const skipFrames = useRef<number>(0);
   
   // Load the model
   useEffect(() => {
@@ -62,10 +64,72 @@ const HandDetection: React.FC<HandDetectionProps> = ({
       if (predictionLoop.current) {
         cancelAnimationFrame(predictionLoop.current);
       }
+      if (featureExtractionTimeout.current) {
+        clearTimeout(featureExtractionTimeout.current);
+      }
     };
   }, []);
   
-  // Run predictions
+  // Debounced feature extraction to improve performance
+  const debouncedFeatureExtraction = useCallback((features: number[]) => {
+    if (featureExtractionTimeout.current) {
+      clearTimeout(featureExtractionTimeout.current);
+    }
+    
+    featureExtractionTimeout.current = setTimeout(() => {
+      if (features.length > 0 && onFeatureExtracted) {
+        onFeatureExtracted(features);
+      }
+    }, 150); // 150ms debounce time
+  }, [onFeatureExtracted]);
+  
+  // Draw hand landmarks
+  const drawHand = useCallback((
+    predictions: handpose.AnnotatedPrediction[],
+    ctx: CanvasRenderingContext2D
+  ) => {
+    if (predictions.length > 0) {
+      const prediction = predictions[0];
+      const landmarks = prediction.landmarks;
+      
+      // Draw keypoints (only every other point for better performance)
+      for (let i = 0; i < landmarks.length; i += 2) {
+        const [x, y] = landmarks[i];
+        ctx.beginPath();
+        ctx.arc(x, y, 5, 0, 3 * Math.PI);
+        ctx.fillStyle = "#3B82F6"; // Blue
+        ctx.fill();
+      }
+      
+      // Draw lines between keypoints
+      const fingerJoints = [
+        [0, 1, 2, 3, 4], // Thumb
+        [0, 5, 6, 7, 8], // Index
+        [0, 9, 10, 11, 12], // Middle
+        [0, 13, 14, 15, 16], // Ring
+        [0, 17, 18, 19, 20] // Pinky
+      ];
+      
+      // Draw lines (with simpler rendering)
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "#60a5fa"; // Lighter blue
+      
+      fingerJoints.forEach((finger) => {
+        ctx.beginPath();
+        for (let i = 0; i < finger.length; i++) {
+          const [x, y] = landmarks[finger[i]];
+          if (i === 0) {
+            ctx.moveTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
+        ctx.stroke();
+      });
+    }
+  }, []);
+  
+  // Run predictions with frame skipping for performance
   useEffect(() => {
     if (!model || !webcamRef.current) return;
     
@@ -75,6 +139,14 @@ const HandDetection: React.FC<HandDetectionProps> = ({
         webcamRef.current.readyState === 4 &&
         canvasRef.current
       ) {
+        // Skip frames for performance (process only every 2nd frame)
+        if (skipFrames.current < 1) {
+          skipFrames.current++;
+          predictionLoop.current = requestAnimationFrame(runPrediction);
+          return;
+        }
+        skipFrames.current = 0;
+        
         try {
           // Get video dimensions
           const video = webcamRef.current;
@@ -113,8 +185,8 @@ const HandDetection: React.FC<HandDetectionProps> = ({
             // In training mode, extract features when hand is detected
             if (trainingMode) {
               const features = landmarksToFeatureVector(landmarks);
-              if (features.length > 0 && onFeatureExtracted) {
-                onFeatureExtracted(features);
+              if (features.length > 0) {
+                debouncedFeatureExtraction(features);
               }
             } 
             // In recognition mode, recognize letters
@@ -161,82 +233,38 @@ const HandDetection: React.FC<HandDetectionProps> = ({
         cancelAnimationFrame(predictionLoop.current);
       }
     };
-  }, [model, webcamRef, detectedLetter, handPresent, onHandDetected, onLetterRecognized, onFeatureExtracted, trainingMode]);
+  }, [model, webcamRef, detectedLetter, handPresent, onHandDetected, onLetterRecognized, debouncedFeatureExtraction, trainingMode, drawHand]);
   
-  // Draw hand landmarks
-  const drawHand = (
-    predictions: handpose.AnnotatedPrediction[],
-    ctx: CanvasRenderingContext2D
-  ) => {
-    if (predictions.length > 0) {
-      predictions.forEach((prediction) => {
-        const landmarks = prediction.landmarks;
-        
-        // Draw keypoints
-        for (let i = 0; i < landmarks.length; i++) {
-          const [x, y] = landmarks[i];
-          ctx.beginPath();
-          ctx.arc(x, y, 5, 0, 3 * Math.PI);
-          ctx.fillStyle = "#3B82F6"; // Blue
-          ctx.fill();
-        }
-        
-        // Draw lines between keypoints
-        const fingerJoints = [
-          [0, 1, 2, 3, 4], // Thumb
-          [0, 5, 6, 7, 8], // Index
-          [0, 9, 10, 11, 12], // Middle
-          [0, 13, 14, 15, 16], // Ring
-          [0, 17, 18, 19, 20] // Pinky
-        ];
-        
-        // Draw lines
-        fingerJoints.forEach((finger) => {
-          for (let i = 0; i < finger.length - 1; i++) {
-            const [x1, y1] = landmarks[finger[i]];
-            const [x2, y2] = landmarks[finger[i + 1]];
-            
-            ctx.beginPath();
-            ctx.moveTo(x1, y1);
-            ctx.lineTo(x2, y2);
-            ctx.strokeStyle = "#60a5fa"; // Lighter blue
-            ctx.lineWidth = 3;
-            ctx.stroke();
-          }
-        });
-      });
-    }
-  };
+  // Simple loading view
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center p-4 sm:p-8">
+        <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 text-primary animate-spin mb-2" />
+        <p className="text-base sm:text-lg font-medium text-center">Loading hand detection model...</p>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-2">This may take a moment</p>
+      </div>
+    );
+  }
   
   return (
     <div className="relative">
-      {loading ? (
-        <div className="flex flex-col items-center justify-center p-4 sm:p-8">
-          <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 text-primary animate-spin mb-2" />
-          <p className="text-base sm:text-lg font-medium text-center">Loading hand detection model...</p>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-2">This may take a moment</p>
-        </div>
-      ) : (
-        <>
-          <canvas
-            ref={canvasRef}
-            className="absolute top-0 left-0 w-full h-full z-10 pointer-events-none"
-          />
-          
-          {handPresent && detectedLetter && !trainingMode && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="absolute bottom-3 sm:bottom-5 left-0 right-0 mx-auto flex justify-center z-20"
-            >
-              <div className="glass px-3 sm:px-6 py-2 sm:py-3 rounded-full">
-                <span className="text-base sm:text-xl font-medium">
-                  Detected: <span className="text-primary font-bold">{detectedLetter}</span>
-                </span>
-              </div>
-            </motion.div>
-          )}
-        </>
+      <canvas
+        ref={canvasRef}
+        className="absolute top-0 left-0 w-full h-full z-10 pointer-events-none"
+      />
+      
+      {handPresent && detectedLetter && !trainingMode && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="absolute bottom-3 sm:bottom-5 left-0 right-0 mx-auto flex justify-center z-20"
+        >
+          <div className="glass px-3 sm:px-6 py-2 sm:py-3 rounded-full">
+            <span className="text-base sm:text-xl font-medium">
+              Detected: <span className="text-primary font-bold">{detectedLetter}</span>
+            </span>
+          </div>
+        </motion.div>
       )}
     </div>
   );

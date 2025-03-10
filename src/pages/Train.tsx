@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Header from '@/components/Header';
 import Webcam from '@/components/Webcam';
 import { toast } from "sonner";
@@ -15,6 +15,7 @@ const Train: React.FC = () => {
   const [showInfo, setShowInfo] = useState<boolean>(true);
   const samplesRef = useRef<number[][]>([]);
   const [currentFeatures, setCurrentFeatures] = useState<number[]>([]);
+  const featureUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Load existing samples for the selected letter
   useEffect(() => {
@@ -37,17 +38,34 @@ const Train: React.FC = () => {
     }
   }, [selectedLetter]);
   
-  const handleHandDetection = (detected: boolean) => {
+  // Handle hand detection with useCallback for better performance
+  const handleHandDetection = useCallback((detected: boolean) => {
     setIsHandDetected(detected);
-  };
+  }, []);
   
-  const handleFeatureExtracted = (features: number[]) => {
-    if (features.length > 0) {
-      setCurrentFeatures(features);
+  // Handle feature extraction with debouncing for better performance
+  const handleFeatureExtracted = useCallback((features: number[]) => {
+    if (featureUpdateTimeoutRef.current) {
+      clearTimeout(featureUpdateTimeoutRef.current);
     }
-  };
+    
+    featureUpdateTimeoutRef.current = setTimeout(() => {
+      if (features.length > 0) {
+        setCurrentFeatures(features);
+      }
+    }, 100);
+  }, []);
   
-  const handleCaptureSample = () => {
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (featureUpdateTimeoutRef.current) {
+        clearTimeout(featureUpdateTimeoutRef.current);
+      }
+    };
+  }, []);
+  
+  const handleCaptureSample = useCallback(() => {
     if (!isHandDetected) {
       toast.error("No hand detected", {
         description: "Position your hand in the camera frame first",
@@ -76,9 +94,9 @@ const Train: React.FC = () => {
     toast.success(`Sample captured for letter ${selectedLetter}`, {
       description: `Sample #${sampleCount + 1}`,
     });
-  };
+  }, [isHandDetected, selectedLetter, currentFeatures, sampleCount]);
   
-  const handleSaveTraining = () => {
+  const handleSaveTraining = useCallback(() => {
     if (sampleCount === 0) {
       toast.error("No samples captured", {
         description: "Capture at least one sample before saving",
@@ -97,7 +115,11 @@ const Train: React.FC = () => {
     samplesRef.current = [];
     setSampleCount(0);
     setSelectedLetter('');
-  };
+  }, [sampleCount, selectedLetter]);
+  
+  const handleToggleInfo = useCallback(() => {
+    setShowInfo(prev => !prev);
+  }, []);
   
   return (
     <div className="min-h-screen">
@@ -107,7 +129,7 @@ const Train: React.FC = () => {
         <div className="max-w-4xl mx-auto">
           <TrainingInfo 
             showInfo={showInfo} 
-            onToggleInfo={() => setShowInfo(!showInfo)} 
+            onToggleInfo={handleToggleInfo} 
           />
           
           <Webcam 
