@@ -8,7 +8,8 @@ import { Loader2 } from 'lucide-react';
 import {
   loadHandposeModel,
   recognizeASLLetter,
-  isHandDetected
+  isHandDetected,
+  landmarksToFeatureVector
 } from '@/utils/handUtils';
 
 interface HandDetectionProps {
@@ -34,40 +35,25 @@ const HandDetection: React.FC<HandDetectionProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const predictionLoop = useRef<number | null>(null);
   
-  // Extract feature vector from landmarks
-  const extractFeatures = (landmarks: Array<[number, number, number]>): number[] => {
-    if (!landmarks || landmarks.length < 21) return [];
-    
-    // Extract relative positions of fingers to palm
-    const palmPosition = landmarks[0]; // Base of palm
-    
-    // Create a normalized feature vector (relative to palm position)
-    const featureVector: number[] = [];
-    
-    // For each landmark, compute position relative to palm
-    for (let i = 1; i < landmarks.length; i++) {
-      const [x, y, z] = landmarks[i];
-      const [palmX, palmY, palmZ] = palmPosition;
-      
-      // Normalized position
-      featureVector.push((x - palmX));
-      featureVector.push((y - palmY));
-      featureVector.push((z - palmZ));
-    }
-    
-    return featureVector;
-  };
-  
   // Load the model
   useEffect(() => {
     async function initializeModel() {
-      const loadedModel = await loadHandposeModel();
-      setModel(loadedModel);
-      setLoading(false);
-      toast("Hand detection model loaded", {
-        description: "Ready to recognize ASL gestures",
-        duration: 3000,
-      });
+      try {
+        const loadedModel = await loadHandposeModel();
+        setModel(loadedModel);
+        setLoading(false);
+        toast.success("Hand detection model loaded", {
+          description: "Ready to recognize ASL gestures",
+          duration: 3000,
+        });
+      } catch (error) {
+        console.error("Error loading handpose model:", error);
+        toast.error("Failed to load hand detection model", {
+          description: "Please refresh the page to try again",
+          duration: 5000,
+        });
+        setLoading(false);
+      }
     }
     
     initializeModel();
@@ -89,68 +75,78 @@ const HandDetection: React.FC<HandDetectionProps> = ({
         webcamRef.current.readyState === 4 &&
         canvasRef.current
       ) {
-        // Get video dimensions
-        const video = webcamRef.current;
-        const videoWidth = video.videoWidth;
-        const videoHeight = video.videoHeight;
-        
-        // Set canvas dimensions
-        canvasRef.current.width = videoWidth;
-        canvasRef.current.height = videoHeight;
-        
-        // Make predictions
-        const predictions = await model.estimateHands(video);
-        
-        // Check if hand is detected
-        const handDetected = isHandDetected(predictions);
-        
-        // Notify about hand detection state changes
-        if (handDetected !== handPresent) {
-          setHandPresent(handDetected);
-          onHandDetected?.(handDetected);
+        try {
+          // Get video dimensions
+          const video = webcamRef.current;
+          const videoWidth = video.videoWidth;
+          const videoHeight = video.videoHeight;
           
-          // Show toast when hand is detected, but limit frequency
-          const now = Date.now();
-          if (handDetected && now - lastToastTime.current > 3000) {
-            toast(`Hand ${handDetected ? "detected" : "lost"}`, {
-              duration: 1500,
-            });
-            lastToastTime.current = now;
-          }
-        }
-        
-        // In training mode, extract features when hand is detected
-        if (handDetected && predictions.length > 0) {
-          const features = extractFeatures(predictions[0].landmarks);
-          if (features.length > 0 && onFeatureExtracted && trainingMode) {
-            onFeatureExtracted(features);
-          }
+          // Set canvas dimensions
+          canvasRef.current.width = videoWidth;
+          canvasRef.current.height = videoHeight;
           
-          // Only recognize letters in recognition mode (not training)
-          if (!trainingMode) {
-            const letter = recognizeASLLetter(predictions);
-            if (letter && letter !== detectedLetter) {
-              setDetectedLetter(letter);
-              onLetterRecognized?.(letter);
+          // Make predictions
+          const predictions = await model.estimateHands(video);
+          
+          // Check if hand is detected
+          const handDetected = isHandDetected(predictions);
+          
+          // Notify about hand detection state changes
+          if (handDetected !== handPresent) {
+            setHandPresent(handDetected);
+            onHandDetected?.(handDetected);
+            
+            // Show toast when hand is detected, but limit frequency
+            const now = Date.now();
+            if (now - lastToastTime.current > 3000) {
+              toast(`Hand ${handDetected ? "detected" : "lost"}`, {
+                duration: 1500,
+              });
+              lastToastTime.current = now;
             }
           }
           
-          // Draw hand landmarks on canvas
-          const ctx = canvasRef.current.getContext('2d');
-          if (ctx) {
-            ctx.clearRect(0, 0, videoWidth, videoHeight);
-            drawHand(predictions, ctx);
+          // Process hand when detected
+          if (handDetected && predictions.length > 0) {
+            const landmarks = predictions[0].landmarks;
+            
+            // In training mode, extract features when hand is detected
+            if (trainingMode) {
+              const features = landmarksToFeatureVector(landmarks);
+              if (features.length > 0 && onFeatureExtracted) {
+                onFeatureExtracted(features);
+              }
+            } 
+            // In recognition mode, recognize letters
+            else {
+              const letter = recognizeASLLetter(predictions);
+              if (letter && letter !== detectedLetter) {
+                setDetectedLetter(letter);
+                onLetterRecognized?.(letter);
+              } else if (!letter && detectedLetter) {
+                setDetectedLetter('');
+              }
+            }
+            
+            // Draw hand landmarks on canvas
+            const ctx = canvasRef.current.getContext('2d');
+            if (ctx) {
+              ctx.clearRect(0, 0, videoWidth, videoHeight);
+              drawHand(predictions, ctx);
+            }
+          } else {
+            // Clear canvas if no hand
+            const ctx = canvasRef.current.getContext('2d');
+            if (ctx) {
+              ctx.clearRect(0, 0, videoWidth, videoHeight);
+            }
+            
+            if (detectedLetter) {
+              setDetectedLetter('');
+            }
           }
-        } else {
-          // Clear canvas if no hand
-          const ctx = canvasRef.current.getContext('2d');
-          if (ctx) {
-            ctx.clearRect(0, 0, videoWidth, videoHeight);
-          }
-          
-          if (detectedLetter) {
-            setDetectedLetter('');
-          }
+        } catch (error) {
+          console.error("Error during hand detection:", error);
         }
       }
       
@@ -215,10 +211,10 @@ const HandDetection: React.FC<HandDetectionProps> = ({
   return (
     <div className="relative">
       {loading ? (
-        <div className="flex flex-col items-center justify-center p-8">
-          <Loader2 className="w-8 h-8 text-primary animate-spin mb-2" />
-          <p className="text-lg font-medium text-center">Loading hand detection model...</p>
-          <p className="text-sm text-muted-foreground mt-2">This may take a moment</p>
+        <div className="flex flex-col items-center justify-center p-4 sm:p-8">
+          <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 text-primary animate-spin mb-2" />
+          <p className="text-base sm:text-lg font-medium text-center">Loading hand detection model...</p>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-2">This may take a moment</p>
         </div>
       ) : (
         <>
@@ -231,10 +227,10 @@ const HandDetection: React.FC<HandDetectionProps> = ({
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="absolute bottom-5 left-0 right-0 mx-auto flex justify-center z-20"
+              className="absolute bottom-3 sm:bottom-5 left-0 right-0 mx-auto flex justify-center z-20"
             >
-              <div className="glass px-6 py-3 rounded-full">
-                <span className="text-xl font-medium">
+              <div className="glass px-3 sm:px-6 py-2 sm:py-3 rounded-full">
+                <span className="text-base sm:text-xl font-medium">
                   Detected: <span className="text-primary font-bold">{detectedLetter}</span>
                 </span>
               </div>

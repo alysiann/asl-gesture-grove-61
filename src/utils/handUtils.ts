@@ -14,12 +14,19 @@ const fingerLandmarks = {
 
 // Initialize handpose model
 export const loadHandposeModel = async (): Promise<handpose.HandPose> => {
-  const model = await handpose.load();
+  console.log("Loading handpose model...");
+  const model = await handpose.load({
+    detectionConfidence: 0.8,
+    maxContinuousChecks: 10,
+    iouThreshold: 0.3,
+    scoreThreshold: 0.75,
+  });
+  console.log("Handpose model loaded successfully");
   return model;
 };
 
 // Convert landmarks to feature vector
-const landmarksToFeatureVector = (landmarks: Array<[number, number, number]>): number[] => {
+export const landmarksToFeatureVector = (landmarks: Array<[number, number, number]>): number[] => {
   if (!landmarks || landmarks.length < 21) return [];
   
   // Extract relative positions of fingers to palm
@@ -28,7 +35,7 @@ const landmarksToFeatureVector = (landmarks: Array<[number, number, number]>): n
   // Create a normalized feature vector (relative to palm position)
   const featureVector: number[] = [];
   
-  // For each landmark, compute distance and angle from palm
+  // For each landmark, compute position relative to palm
   for (let i = 1; i < landmarks.length; i++) {
     const [x, y, z] = landmarks[i];
     const [palmX, palmY, palmZ] = palmPosition;
@@ -63,7 +70,7 @@ export const recognizeASLLetter = (predictions: handpose.AnnotatedPrediction[]):
   // Get training data
   const trainingData = getTrainingData();
   if (trainingData.length === 0) {
-    // No training data available
+    console.log("No training data available for recognition");
     return '';
   }
   
@@ -78,18 +85,31 @@ export const recognizeASLLetter = (predictions: handpose.AnnotatedPrediction[]):
   let bestMatch = '';
   let minDistance = Infinity;
   
+  // Store all distances for debugging
+  const letterDistances: {[key: string]: number} = {};
+  
   trainingData.forEach((data: TrainingData) => {
+    let letterMinDistance = Infinity;
+    
     data.samples.forEach(sample => {
       const distance = calculateFeatureDistance(featureVector, sample);
+      letterMinDistance = Math.min(letterMinDistance, distance);
+      
       if (distance < minDistance) {
         minDistance = distance;
         bestMatch = data.letter;
       }
     });
+    
+    letterDistances[data.letter] = letterMinDistance;
   });
   
+  console.log("Recognition distances:", letterDistances);
+  console.log("Best match:", bestMatch, "with distance:", minDistance);
+  
   // Return the best match if distance is below threshold
-  const threshold = 200; // Adjust this threshold based on testing
+  // Lower threshold = more strict matching
+  const threshold = 150; 
   return minDistance < threshold ? bestMatch : '';
 };
 

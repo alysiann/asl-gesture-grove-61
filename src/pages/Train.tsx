@@ -1,27 +1,50 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Header from '@/components/Header';
 import Webcam from '@/components/Webcam';
 import { toast } from "sonner";
 import TrainingInfo from '@/components/train/TrainingInfo';
 import TrainingStatus from '@/components/train/TrainingStatus';
 import TrainLetterSelector from '@/components/train/TrainLetterSelector';
-import { saveTrainingData } from '@/services/trainingService';
+import { saveTrainingData, getTrainingData } from '@/services/trainingService';
 
 const Train: React.FC = () => {
   const [isHandDetected, setIsHandDetected] = useState<boolean>(false);
   const [selectedLetter, setSelectedLetter] = useState<string>('');
   const [sampleCount, setSampleCount] = useState<number>(0);
-  const [showInfo, setShowInfo] = useState<boolean>(false);
+  const [showInfo, setShowInfo] = useState<boolean>(true);
   const samplesRef = useRef<number[][]>([]);
   const [currentFeatures, setCurrentFeatures] = useState<number[]>([]);
+  
+  // Load existing samples for the selected letter
+  useEffect(() => {
+    if (selectedLetter) {
+      // Reset samples when letter changes
+      samplesRef.current = [];
+      setSampleCount(0);
+      
+      // Check if we have existing samples for this letter
+      const existingData = getTrainingData();
+      const letterData = existingData.find(data => data.letter === selectedLetter);
+      
+      if (letterData) {
+        samplesRef.current = [...letterData.samples];
+        setSampleCount(letterData.samples.length);
+        toast.info(`${letterData.samples.length} existing samples loaded for letter ${selectedLetter}`, {
+          duration: 3000,
+        });
+      }
+    }
+  }, [selectedLetter]);
   
   const handleHandDetection = (detected: boolean) => {
     setIsHandDetected(detected);
   };
   
   const handleFeatureExtracted = (features: number[]) => {
-    setCurrentFeatures(features);
+    if (features.length > 0) {
+      setCurrentFeatures(features);
+    }
   };
   
   const handleCaptureSample = () => {
@@ -80,8 +103,8 @@ const Train: React.FC = () => {
     <div className="min-h-screen">
       <Header />
       
-      <div className="container mx-auto px-4 pt-24 pb-16">
-        <div className="max-w-3xl mx-auto">
+      <div className="container mx-auto px-4 pt-16 sm:pt-20 md:pt-24 pb-16">
+        <div className="max-w-4xl mx-auto">
           <TrainingInfo 
             showInfo={showInfo} 
             onToggleInfo={() => setShowInfo(!showInfo)} 
@@ -93,7 +116,7 @@ const Train: React.FC = () => {
             trainingMode={true}
           />
           
-          <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="mt-4 sm:mt-6 md:mt-8 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
             <TrainingStatus 
               isHandDetected={isHandDetected}
               selectedLetter={selectedLetter}
