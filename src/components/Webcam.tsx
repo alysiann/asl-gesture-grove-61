@@ -9,11 +9,15 @@ import HandDetection from './HandDetection';
 interface WebcamProps {
   onHandDetected?: (isDetected: boolean) => void;
   onLetterRecognized?: (letter: string) => void;
+  onFeatureExtracted?: (features: number[]) => void;
+  trainingMode?: boolean;
 }
 
 const Webcam: React.FC<WebcamProps> = ({ 
   onHandDetected,
-  onLetterRecognized
+  onLetterRecognized,
+  onFeatureExtracted,
+  trainingMode = false
 }) => {
   const webcamRef = useRef<HTMLVideoElement>(null);
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
@@ -109,6 +113,8 @@ const Webcam: React.FC<WebcamProps> = ({
             webcamRef={webcamRef} 
             onHandDetected={onHandDetected}
             onLetterRecognized={onLetterRecognized}
+            onFeatureExtracted={onFeatureExtracted}
+            trainingMode={trainingMode}
           />
         )}
         

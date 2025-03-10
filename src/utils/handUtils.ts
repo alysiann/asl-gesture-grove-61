@@ -1,6 +1,7 @@
 
 import * as handpose from '@tensorflow-models/handpose';
 import '@tensorflow/tfjs-backend-webgl';
+import { getTrainingData, TrainingData } from '../services/trainingService';
 
 // Finger landmark indices
 const fingerLandmarks = {
@@ -17,17 +18,79 @@ export const loadHandposeModel = async (): Promise<handpose.HandPose> => {
   return model;
 };
 
-// Process predictions to determine ASL letter
+// Convert landmarks to feature vector
+const landmarksToFeatureVector = (landmarks: Array<[number, number, number]>): number[] => {
+  if (!landmarks || landmarks.length < 21) return [];
+  
+  // Extract relative positions of fingers to palm
+  const palmPosition = landmarks[0]; // Base of palm
+  
+  // Create a normalized feature vector (relative to palm position)
+  const featureVector: number[] = [];
+  
+  // For each landmark, compute distance and angle from palm
+  for (let i = 1; i < landmarks.length; i++) {
+    const [x, y, z] = landmarks[i];
+    const [palmX, palmY, palmZ] = palmPosition;
+    
+    // Normalized position
+    featureVector.push((x - palmX));
+    featureVector.push((y - palmY));
+    featureVector.push((z - palmZ));
+  }
+  
+  return featureVector;
+};
+
+// Calculate euclidean distance between feature vectors
+const calculateFeatureDistance = (vec1: number[], vec2: number[]): number => {
+  if (vec1.length !== vec2.length) return Infinity;
+  
+  let sum = 0;
+  for (let i = 0; i < vec1.length; i++) {
+    sum += Math.pow(vec1[i] - vec2[i], 2);
+  }
+  
+  return Math.sqrt(sum);
+};
+
+// Process predictions to determine ASL letter using training data
 export const recognizeASLLetter = (predictions: handpose.AnnotatedPrediction[]): string => {
   if (!predictions || predictions.length === 0) {
     return '';
   }
-
-  // This is a simplified example - a real implementation would need more complex logic
-  // In production, this would use a trained model for accurate letter prediction
-  // For now, we'll return a placeholder
   
-  return 'A'; // Placeholder - will be replaced with actual recognition logic
+  // Get training data
+  const trainingData = getTrainingData();
+  if (trainingData.length === 0) {
+    // No training data available
+    return '';
+  }
+  
+  // Extract landmarks from first hand
+  const landmarks = predictions[0].landmarks;
+  
+  // Convert to feature vector
+  const featureVector = landmarksToFeatureVector(landmarks);
+  if (featureVector.length === 0) return '';
+  
+  // Compare with training data using K-nearest neighbor approach
+  let bestMatch = '';
+  let minDistance = Infinity;
+  
+  trainingData.forEach((data: TrainingData) => {
+    data.samples.forEach(sample => {
+      const distance = calculateFeatureDistance(featureVector, sample);
+      if (distance < minDistance) {
+        minDistance = distance;
+        bestMatch = data.letter;
+      }
+    });
+  });
+  
+  // Return the best match if distance is below threshold
+  const threshold = 200; // Adjust this threshold based on testing
+  return minDistance < threshold ? bestMatch : '';
 };
 
 // Calculate distance between two points (landmarks)

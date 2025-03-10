@@ -15,12 +15,16 @@ interface HandDetectionProps {
   webcamRef: React.RefObject<HTMLVideoElement>;
   onHandDetected?: (isDetected: boolean) => void;
   onLetterRecognized?: (letter: string) => void;
+  onFeatureExtracted?: (features: number[]) => void;
+  trainingMode?: boolean;
 }
 
 const HandDetection: React.FC<HandDetectionProps> = ({
   webcamRef,
   onHandDetected,
-  onLetterRecognized
+  onLetterRecognized,
+  onFeatureExtracted,
+  trainingMode = false
 }) => {
   const [model, setModel] = useState<handpose.HandPose | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -29,6 +33,30 @@ const HandDetection: React.FC<HandDetectionProps> = ({
   const lastToastTime = useRef<number>(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const predictionLoop = useRef<number | null>(null);
+  
+  // Extract feature vector from landmarks
+  const extractFeatures = (landmarks: Array<[number, number, number]>): number[] => {
+    if (!landmarks || landmarks.length < 21) return [];
+    
+    // Extract relative positions of fingers to palm
+    const palmPosition = landmarks[0]; // Base of palm
+    
+    // Create a normalized feature vector (relative to palm position)
+    const featureVector: number[] = [];
+    
+    // For each landmark, compute position relative to palm
+    for (let i = 1; i < landmarks.length; i++) {
+      const [x, y, z] = landmarks[i];
+      const [palmX, palmY, palmZ] = palmPosition;
+      
+      // Normalized position
+      featureVector.push((x - palmX));
+      featureVector.push((y - palmY));
+      featureVector.push((z - palmZ));
+    }
+    
+    return featureVector;
+  };
   
   // Load the model
   useEffect(() => {
@@ -91,12 +119,20 @@ const HandDetection: React.FC<HandDetectionProps> = ({
           }
         }
         
-        // Recognize letter if hand is detected
-        if (handDetected) {
-          const letter = recognizeASLLetter(predictions);
-          if (letter && letter !== detectedLetter) {
-            setDetectedLetter(letter);
-            onLetterRecognized?.(letter);
+        // In training mode, extract features when hand is detected
+        if (handDetected && predictions.length > 0) {
+          const features = extractFeatures(predictions[0].landmarks);
+          if (features.length > 0 && onFeatureExtracted && trainingMode) {
+            onFeatureExtracted(features);
+          }
+          
+          // Only recognize letters in recognition mode (not training)
+          if (!trainingMode) {
+            const letter = recognizeASLLetter(predictions);
+            if (letter && letter !== detectedLetter) {
+              setDetectedLetter(letter);
+              onLetterRecognized?.(letter);
+            }
           }
           
           // Draw hand landmarks on canvas
@@ -129,7 +165,7 @@ const HandDetection: React.FC<HandDetectionProps> = ({
         cancelAnimationFrame(predictionLoop.current);
       }
     };
-  }, [model, webcamRef, detectedLetter, handPresent, onHandDetected, onLetterRecognized]);
+  }, [model, webcamRef, detectedLetter, handPresent, onHandDetected, onLetterRecognized, onFeatureExtracted, trainingMode]);
   
   // Draw hand landmarks
   const drawHand = (
@@ -191,7 +227,7 @@ const HandDetection: React.FC<HandDetectionProps> = ({
             className="absolute top-0 left-0 w-full h-full z-10 pointer-events-none"
           />
           
-          {handPresent && detectedLetter && (
+          {handPresent && detectedLetter && !trainingMode && (
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}

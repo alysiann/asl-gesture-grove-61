@@ -1,20 +1,27 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import Header from '@/components/Header';
 import Webcam from '@/components/Webcam';
 import { toast } from "sonner";
 import TrainingInfo from '@/components/train/TrainingInfo';
 import TrainingStatus from '@/components/train/TrainingStatus';
 import TrainLetterSelector from '@/components/train/TrainLetterSelector';
+import { saveTrainingData } from '@/services/trainingService';
 
 const Train: React.FC = () => {
   const [isHandDetected, setIsHandDetected] = useState<boolean>(false);
   const [selectedLetter, setSelectedLetter] = useState<string>('');
   const [sampleCount, setSampleCount] = useState<number>(0);
   const [showInfo, setShowInfo] = useState<boolean>(false);
+  const samplesRef = useRef<number[][]>([]);
+  const [currentFeatures, setCurrentFeatures] = useState<number[]>([]);
   
   const handleHandDetection = (detected: boolean) => {
     setIsHandDetected(detected);
+  };
+  
+  const handleFeatureExtracted = (features: number[]) => {
+    setCurrentFeatures(features);
   };
   
   const handleCaptureSample = () => {
@@ -32,8 +39,17 @@ const Train: React.FC = () => {
       return;
     }
     
-    // Simulate capturing a sample
+    if (currentFeatures.length === 0) {
+      toast.error("No features detected", {
+        description: "Please ensure your hand is clearly visible",
+      });
+      return;
+    }
+    
+    // Add features to samples
+    samplesRef.current.push([...currentFeatures]);
     setSampleCount(prev => prev + 1);
+    
     toast.success(`Sample captured for letter ${selectedLetter}`, {
       description: `Sample #${sampleCount + 1}`,
     });
@@ -47,12 +63,15 @@ const Train: React.FC = () => {
       return;
     }
     
-    // Simulate saving training data
+    // Save training data
+    saveTrainingData(selectedLetter, samplesRef.current);
+    
     toast.success("Training data saved successfully", {
       description: `${sampleCount} samples for letter ${selectedLetter} saved`,
     });
     
     // Reset after save
+    samplesRef.current = [];
     setSampleCount(0);
     setSelectedLetter('');
   };
@@ -69,7 +88,9 @@ const Train: React.FC = () => {
           />
           
           <Webcam 
-            onHandDetected={handleHandDetection} 
+            onHandDetected={handleHandDetection}
+            onFeatureExtracted={handleFeatureExtracted}
+            trainingMode={true}
           />
           
           <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
