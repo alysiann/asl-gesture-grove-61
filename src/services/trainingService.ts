@@ -13,37 +13,47 @@ const TRAINING_DATA_KEY = 'asl-training-data';
  * Save training data for a letter
  */
 export const saveTrainingData = (letter: string, samples: number[][]): void => {
-  // Get existing data
-  const existingData = getTrainingData();
-  
-  // Create new entry or update existing
-  const newEntry: TrainingData = {
-    letter,
-    samples,
-    timestamp: Date.now()
-  };
-  
-  // Check if letter already exists
-  const index = existingData.findIndex(data => data.letter === letter);
-  
-  if (index >= 0) {
-    // Update existing
-    existingData[index] = newEntry;
-  } else {
-    // Add new
-    existingData.push(newEntry);
+  try {
+    // Get existing data
+    const existingData = getTrainingData();
+    
+    // Create new entry or update existing
+    const newEntry: TrainingData = {
+      letter,
+      samples,
+      timestamp: Date.now()
+    };
+    
+    // Check if letter already exists
+    const index = existingData.findIndex(data => data.letter === letter);
+    
+    if (index >= 0) {
+      // Update existing
+      existingData[index] = newEntry;
+    } else {
+      // Add new
+      existingData.push(newEntry);
+    }
+    
+    // Save to localStorage
+    localStorage.setItem(TRAINING_DATA_KEY, JSON.stringify(existingData));
+  } catch (error) {
+    console.error("Error saving training data:", error);
+    throw new Error("Failed to save training data");
   }
-  
-  // Save to localStorage
-  localStorage.setItem(TRAINING_DATA_KEY, JSON.stringify(existingData));
 };
 
 /**
  * Get all training data
  */
 export const getTrainingData = (): TrainingData[] => {
-  const data = localStorage.getItem(TRAINING_DATA_KEY);
-  return data ? JSON.parse(data) : [];
+  try {
+    const data = localStorage.getItem(TRAINING_DATA_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch (error) {
+    console.error("Error getting training data:", error);
+    return [];
+  }
 };
 
 /**
@@ -57,36 +67,58 @@ export const hasTrainingData = (): boolean => {
  * Get combined training data (user trained + defaults)
  */
 export const getCombinedTrainingData = (): TrainingData[] => {
-  // Import here to avoid circular dependency
-  const { getDefaultASLAlphabet } = require('../utils/defaultASLAlphabet');
-  
-  // Get user training data
-  const userData = getTrainingData();
-  
-  // If no user data, return default alphabet
-  if (userData.length === 0) {
-    return getDefaultASLAlphabet();
-  }
-  
-  // Get default data for letters not in user data
-  const defaultData = getDefaultASLAlphabet();
-  const userLetters = userData.map(item => item.letter);
-  
-  // Combine user data with defaults for letters not trained by user
-  const combinedData = [...userData];
-  
-  defaultData.forEach(defaultItem => {
-    if (!userLetters.includes(defaultItem.letter)) {
-      combinedData.push(defaultItem);
+  try {
+    // Import here to avoid circular dependency
+    const { getDefaultASLAlphabet } = require('../utils/defaultASLAlphabet');
+    
+    // Get user training data
+    const userData = getTrainingData();
+    
+    // Get default data
+    const defaultData = getDefaultASLAlphabet();
+    
+    // If no default data, return just user data
+    if (!defaultData || defaultData.length === 0) {
+      return userData;
     }
-  });
-  
-  return combinedData;
+    
+    // If no user data, return default alphabet
+    if (userData.length === 0) {
+      return defaultData;
+    }
+    
+    // Combine user data with defaults for letters not trained by user
+    const userLetters = userData.map(item => item.letter);
+    const combinedData = [...userData];
+    
+    defaultData.forEach(defaultItem => {
+      if (!userLetters.includes(defaultItem.letter)) {
+        combinedData.push(defaultItem);
+      }
+    });
+    
+    return combinedData;
+  } catch (error) {
+    console.error("Error combining training data:", error);
+    
+    // Fallback to default alphabet if available
+    try {
+      const { getDefaultASLAlphabet } = require('../utils/defaultASLAlphabet');
+      return getDefaultASLAlphabet();
+    } catch (fallbackError) {
+      console.error("Fallback to default alphabet failed:", fallbackError);
+      return [];
+    }
+  }
 };
 
 /**
  * Clear all training data
  */
 export const clearTrainingData = (): void => {
-  localStorage.removeItem(TRAINING_DATA_KEY);
+  try {
+    localStorage.removeItem(TRAINING_DATA_KEY);
+  } catch (error) {
+    console.error("Error clearing training data:", error);
+  }
 };

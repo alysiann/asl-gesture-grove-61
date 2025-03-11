@@ -20,12 +20,18 @@ const Webcam: React.FC<WebcamProps> = ({
   trainingMode = false
 }) => {
   const webcamRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
 
   const startWebcam = async () => {
     setError('');
     try {
+      // Stop any existing stream first
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+      
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 640 },
@@ -33,6 +39,8 @@ const Webcam: React.FC<WebcamProps> = ({
           facingMode: 'user',
         },
       });
+      
+      streamRef.current = stream;
       
       if (webcamRef.current) {
         webcamRef.current.srcObject = stream;
@@ -51,15 +59,19 @@ const Webcam: React.FC<WebcamProps> = ({
   };
 
   const stopWebcam = () => {
-    if (webcamRef.current && webcamRef.current.srcObject) {
-      const tracks = (webcamRef.current.srcObject as MediaStream).getTracks();
-      tracks.forEach(track => track.stop());
-      webcamRef.current.srcObject = null;
-      setIsStreaming(false);
-      toast("Camera deactivated", {
-        duration: 2000,
-      });
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
     }
+    
+    if (webcamRef.current) {
+      webcamRef.current.srcObject = null;
+    }
+    
+    setIsStreaming(false);
+    toast("Camera deactivated", {
+      duration: 2000,
+    });
   };
 
   const toggleWebcam = () => {

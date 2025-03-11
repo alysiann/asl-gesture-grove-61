@@ -36,12 +36,20 @@ const HandDetection: React.FC<HandDetectionProps> = ({
   const predictionLoop = useRef<number | null>(null);
   const featureExtractionTimeout = useRef<NodeJS.Timeout | null>(null);
   const skipFrames = useRef<number>(0);
+  const modelError = useRef<boolean>(false);
   
   // Load the model
   useEffect(() => {
+    let isMounted = true;
+    
     async function initializeModel() {
       try {
+        console.log("Starting model initialization");
         const loadedModel = await loadHandposeModel();
+        
+        if (!isMounted) return;
+        
+        console.log("Model initialized successfully");
         setModel(loadedModel);
         setLoading(false);
         toast.success("Hand detection model loaded", {
@@ -50,22 +58,31 @@ const HandDetection: React.FC<HandDetectionProps> = ({
         });
       } catch (error) {
         console.error("Error loading handpose model:", error);
+        
+        if (!isMounted) return;
+        
+        modelError.current = true;
+        setLoading(false);
         toast.error("Failed to load hand detection model", {
           description: "Please refresh the page to try again",
           duration: 5000,
         });
-        setLoading(false);
       }
     }
     
     initializeModel();
     
     return () => {
+      isMounted = false;
+      
       if (predictionLoop.current) {
         cancelAnimationFrame(predictionLoop.current);
+        predictionLoop.current = null;
       }
+      
       if (featureExtractionTimeout.current) {
         clearTimeout(featureExtractionTimeout.current);
+        featureExtractionTimeout.current = null;
       }
     };
   }, []);
@@ -88,9 +105,12 @@ const HandDetection: React.FC<HandDetectionProps> = ({
     predictions: handpose.AnnotatedPrediction[],
     ctx: CanvasRenderingContext2D
   ) => {
-    if (predictions.length > 0) {
+    if (!predictions || predictions.length === 0) return;
+    
+    try {
       const prediction = predictions[0];
       const landmarks = prediction.landmarks;
+      if (!landmarks || landmarks.length === 0) return;
       
       // Draw keypoints (only every other point for better performance)
       for (let i = 0; i < landmarks.length; i += 2) {
@@ -117,6 +137,8 @@ const HandDetection: React.FC<HandDetectionProps> = ({
       fingerJoints.forEach((finger) => {
         ctx.beginPath();
         for (let i = 0; i < finger.length; i++) {
+          if (i >= landmarks.length) continue;
+          
           const [x, y] = landmarks[finger[i]];
           if (i === 0) {
             ctx.moveTo(x, y);
@@ -126,100 +148,106 @@ const HandDetection: React.FC<HandDetectionProps> = ({
         }
         ctx.stroke();
       });
+    } catch (error) {
+      console.error("Error drawing hand:", error);
     }
   }, []);
   
   // Run predictions with frame skipping for performance
   useEffect(() => {
-    if (!model || !webcamRef.current) return;
+    if (modelError.current || !model || !webcamRef.current) return;
     
     const runPrediction = async () => {
       if (
-        webcamRef.current &&
-        webcamRef.current.readyState === 4 &&
-        canvasRef.current
+        !webcamRef.current ||
+        webcamRef.current.readyState !== 4 ||
+        !canvasRef.current
       ) {
-        // Skip frames for performance (process only every 2nd frame)
-        if (skipFrames.current < 1) {
-          skipFrames.current++;
-          predictionLoop.current = requestAnimationFrame(runPrediction);
-          return;
-        }
-        skipFrames.current = 0;
+        predictionLoop.current = requestAnimationFrame(runPrediction);
+        return;
+      }
+      
+      // Skip frames for performance (process only every 2nd frame)
+      if (skipFrames.current < 1) {
+        skipFrames.current++;
+        predictionLoop.current = requestAnimationFrame(runPrediction);
+        return;
+      }
+      skipFrames.current = 0;
+      
+      try {
+        // Get video dimensions
+        const video = webcamRef.current;
+        const videoWidth = video.videoWidth;
+        const videoHeight = video.videoHeight;
         
-        try {
-          // Get video dimensions
-          const video = webcamRef.current;
-          const videoWidth = video.videoWidth;
-          const videoHeight = video.videoHeight;
+        // Set canvas dimensions
+        const canvas = canvasRef.current;
+        canvas.width = videoWidth;
+        canvas.height = videoHeight;
+        
+        // Make predictions
+        const predictions = await model.estimateHands(video);
+        
+        // Check if hand is detected
+        const handDetected = isHandDetected(predictions);
+        
+        // Notify about hand detection state changes
+        if (handDetected !== handPresent) {
+          setHandPresent(handDetected);
+          onHandDetected?.(handDetected);
           
-          // Set canvas dimensions
-          canvasRef.current.width = videoWidth;
-          canvasRef.current.height = videoHeight;
-          
-          // Make predictions
-          const predictions = await model.estimateHands(video);
-          
-          // Check if hand is detected
-          const handDetected = isHandDetected(predictions);
-          
-          // Notify about hand detection state changes
-          if (handDetected !== handPresent) {
-            setHandPresent(handDetected);
-            onHandDetected?.(handDetected);
-            
-            // Show toast when hand is detected, but limit frequency
-            const now = Date.now();
-            if (now - lastToastTime.current > 3000) {
-              toast(`Hand ${handDetected ? "detected" : "lost"}`, {
-                duration: 1500,
-              });
-              lastToastTime.current = now;
-            }
+          // Show toast when hand is detected, but limit frequency
+          const now = Date.now();
+          if (now - lastToastTime.current > 3000) {
+            toast(`Hand ${handDetected ? "detected" : "lost"}`, {
+              duration: 1500,
+            });
+            lastToastTime.current = now;
           }
+        }
+        
+        // Process hand when detected
+        if (handDetected && predictions.length > 0) {
+          const landmarks = predictions[0].landmarks;
           
-          // Process hand when detected
-          if (handDetected && predictions.length > 0) {
-            const landmarks = predictions[0].landmarks;
-            
-            // In training mode, extract features when hand is detected
-            if (trainingMode) {
-              const features = landmarksToFeatureVector(landmarks);
-              if (features.length > 0) {
-                debouncedFeatureExtraction(features);
-              }
-            } 
-            // In recognition mode, recognize letters
-            else {
-              const letter = recognizeASLLetter(predictions);
-              if (letter && letter !== detectedLetter) {
-                setDetectedLetter(letter);
-                onLetterRecognized?.(letter);
-              } else if (!letter && detectedLetter) {
-                setDetectedLetter('');
-              }
+          // In training mode, extract features when hand is detected
+          if (trainingMode) {
+            const features = landmarksToFeatureVector(landmarks);
+            if (features.length > 0) {
+              debouncedFeatureExtraction(features);
             }
-            
-            // Draw hand landmarks on canvas
-            const ctx = canvasRef.current.getContext('2d');
-            if (ctx) {
-              ctx.clearRect(0, 0, videoWidth, videoHeight);
-              drawHand(predictions, ctx);
-            }
-          } else {
-            // Clear canvas if no hand
-            const ctx = canvasRef.current.getContext('2d');
-            if (ctx) {
-              ctx.clearRect(0, 0, videoWidth, videoHeight);
-            }
-            
-            if (detectedLetter) {
+          } 
+          // In recognition mode, recognize letters
+          else {
+            const letter = recognizeASLLetter(predictions);
+            if (letter && letter !== detectedLetter) {
+              setDetectedLetter(letter);
+              onLetterRecognized?.(letter);
+            } else if (!letter && detectedLetter) {
               setDetectedLetter('');
             }
           }
-        } catch (error) {
-          console.error("Error during hand detection:", error);
+          
+          // Draw hand landmarks on canvas
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.clearRect(0, 0, videoWidth, videoHeight);
+            drawHand(predictions, ctx);
+          }
+        } else {
+          // Clear canvas if no hand
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.clearRect(0, 0, videoWidth, videoHeight);
+          }
+          
+          if (detectedLetter) {
+            setDetectedLetter('');
+          }
         }
+      } catch (error) {
+        console.error("Error during hand detection:", error);
       }
       
       // Continue prediction loop
@@ -231,6 +259,7 @@ const HandDetection: React.FC<HandDetectionProps> = ({
     return () => {
       if (predictionLoop.current) {
         cancelAnimationFrame(predictionLoop.current);
+        predictionLoop.current = null;
       }
     };
   }, [model, webcamRef, detectedLetter, handPresent, onHandDetected, onLetterRecognized, debouncedFeatureExtraction, trainingMode, drawHand]);
@@ -242,6 +271,20 @@ const HandDetection: React.FC<HandDetectionProps> = ({
         <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 text-primary animate-spin mb-2" />
         <p className="text-base sm:text-lg font-medium text-center">Loading hand detection model...</p>
         <p className="text-xs sm:text-sm text-muted-foreground mt-2">This may take a moment</p>
+      </div>
+    );
+  }
+  
+  // Show error if model failed to load
+  if (modelError.current) {
+    return (
+      <div className="flex flex-col items-center justify-center p-8 text-center">
+        <p className="text-lg font-medium text-destructive mb-2">
+          Could not load hand detection model
+        </p>
+        <p className="text-sm text-muted-foreground mb-4">
+          Please try refreshing the page
+        </p>
       </div>
     );
   }

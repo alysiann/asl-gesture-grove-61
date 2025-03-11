@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Header from '@/components/Header';
@@ -14,20 +15,30 @@ const Recognize: React.FC = () => {
   const [recognizedLetter, setRecognizedLetter] = useState<string>('');
   const [detectionHistory, setDetectionHistory] = useState<string[]>([]);
   const [showInfo, setShowInfo] = useState<boolean>(false);
+  const [isReady, setIsReady] = useState<boolean>(false);
   
   // Load combined training data on startup
   useEffect(() => {
     const checkTrainingData = () => {
-      const combinedData = getCombinedTrainingData();
-      
-      if (combinedData.length > 0) {
-        toast.success("Recognition system ready", {
-          description: "Ready to recognize ASL gestures A-Z",
-          duration: 3000,
-        });
-      } else {
-        toast.error("No recognition data available", {
-          description: "Could not load ASL recognition data",
+      try {
+        const combinedData = getCombinedTrainingData();
+        
+        if (combinedData.length > 0) {
+          setIsReady(true);
+          toast.success("Recognition system ready", {
+            description: "Ready to recognize ASL gestures A-Z",
+            duration: 3000,
+          });
+        } else {
+          toast.error("No recognition data available", {
+            description: "Could not load ASL recognition data",
+            duration: 5000,
+          });
+        }
+      } catch (error) {
+        console.error("Error loading training data:", error);
+        toast.error("Error loading recognition data", {
+          description: "Please try refreshing the page",
           duration: 5000,
         });
       }
@@ -70,7 +81,13 @@ const Recognize: React.FC = () => {
   }, []);
   
   return (
-    <div className="min-h-screen">
+    <motion.div 
+      className="min-h-screen bg-background"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.3 }}
+    >
       <Header />
       
       <div className="container mx-auto px-4 pt-24 pb-16">
@@ -97,7 +114,7 @@ const Recognize: React.FC = () => {
           <ASLAlphabet recognizedLetter={recognizedLetter} />
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
