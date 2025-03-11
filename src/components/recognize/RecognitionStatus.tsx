@@ -30,7 +30,7 @@ const RecognitionStatus: React.FC<RecognitionStatusProps> = ({
       <div className="flex flex-col items-center justify-center py-8">
         <div className="relative mb-4">
           <div className="absolute inset-0 bg-primary/10 rounded-full flex items-center justify-center animate-pulse-subtle" />
-          <div className="bg-white dark:bg-black rounded-full p-4 relative z-10">
+          <div className="bg-background rounded-full p-4 relative z-10">
             <Hand className="w-8 h-8 text-primary" />
           </div>
         </div>
