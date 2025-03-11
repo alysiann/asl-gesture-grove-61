@@ -19,13 +19,20 @@ const ASLAlphabet: React.FC<ASLAlphabetProps> = ({ recognizedLetter }) => {
       <h2 className="text-xl font-medium mb-4">ASL Alphabet</h2>
       <div className="grid grid-cols-6 sm:grid-cols-9 gap-2">
         {ASL_LETTERS.map((letter) => (
-          <div 
+          <motion.div 
             key={letter}
             className={`aspect-square glass p-2 rounded-lg flex items-center justify-center
-              ${letter === recognizedLetter ? 'ring-2 ring-primary' : ''}`}
+              ${letter === recognizedLetter ? 'bg-primary/20 ring-2 ring-primary' : ''}`}
+            animate={{
+              scale: letter === recognizedLetter ? 1.1 : 1,
+              backgroundColor: letter === recognizedLetter ? 'rgba(var(--primary), 0.2)' : 'rgba(255, 255, 255, 0.1)'
+            }}
+            transition={{ duration: 0.3 }}
           >
-            <span>{letter}</span>
-          </div>
+            <span className={`text-base sm:text-lg font-medium ${letter === recognizedLetter ? 'text-primary font-bold' : ''}`}>
+              {letter}
+            </span>
+          </motion.div>
         ))}
       </div>
     </motion.div>

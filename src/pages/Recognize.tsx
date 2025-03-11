@@ -8,7 +8,8 @@ import InfoPanel from '@/components/recognize/InfoPanel';
 import RecognitionStatus from '@/components/recognize/RecognitionStatus';
 import RecognitionHistory from '@/components/recognize/RecognitionHistory';
 import ASLAlphabet from '@/components/recognize/ASLAlphabet';
-import { getCombinedTrainingData } from '@/services/trainingService';
+import { getTrainingData } from '@/services/trainingService';
+import { getDefaultASLAlphabet } from '@/utils/defaultASLAlphabet';
 
 const Recognize: React.FC = () => {
   const [isHandDetected, setIsHandDetected] = useState<boolean>(false);
@@ -17,34 +18,41 @@ const Recognize: React.FC = () => {
   const [showInfo, setShowInfo] = useState<boolean>(false);
   const [isReady, setIsReady] = useState<boolean>(false);
   
-  // Load combined training data on startup
+  // Initialize default alphabet cache for faster recognition
   useEffect(() => {
-    const checkTrainingData = () => {
-      try {
-        const combinedData = getCombinedTrainingData();
-        
-        if (combinedData.length > 0) {
-          setIsReady(true);
-          toast.success("Recognition system ready", {
-            description: "Ready to recognize ASL gestures A-Z",
-            duration: 3000,
-          });
-        } else {
-          toast.error("No recognition data available", {
-            description: "Could not load ASL recognition data",
-            duration: 5000,
-          });
-        }
-      } catch (error) {
-        console.error("Error loading training data:", error);
-        toast.error("Error loading recognition data", {
-          description: "Please try refreshing the page",
-          duration: 5000,
+    try {
+      // Cache default alphabet in localStorage for faster access
+      const defaultAlphabet = getDefaultASLAlphabet();
+      localStorage.setItem('asl-default-alphabet-cache', JSON.stringify(defaultAlphabet));
+      
+      // Check if we have user training data
+      const userData = getTrainingData();
+      
+      // Set ready state
+      setIsReady(true);
+      
+      // Show appropriate toast
+      if (userData.length > 0) {
+        toast.success("Recognition system ready", {
+          description: `Ready with ${userData.length} custom trained letters plus defaults`,
+          duration: 3000,
+        });
+      } else {
+        toast.success("Recognition system ready", {
+          description: "Using default ASL alphabet recognition",
+          duration: 3000,
         });
       }
-    };
-    
-    checkTrainingData();
+    } catch (error) {
+      console.error("Error initializing recognition:", error);
+      // Still set ready to true to allow using defaults
+      setIsReady(true);
+      
+      toast.warning("Using default recognition only", {
+        description: "Custom training data not available",
+        duration: 3000,
+      });
+    }
   }, []);
   
   const handleHandDetection = (detected: boolean) => {

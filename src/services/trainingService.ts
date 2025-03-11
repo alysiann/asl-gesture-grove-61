@@ -68,47 +68,88 @@ export const hasTrainingData = (): boolean => {
  */
 export const getCombinedTrainingData = (): TrainingData[] => {
   try {
-    // Import here to avoid circular dependency
-    const { getDefaultASLAlphabet } = require('../utils/defaultASLAlphabet');
+    // Import the defaultASLAlphabet properly (no require)
+    import { getDefaultASLAlphabet } from '../utils/defaultASLAlphabet';
     
     // Get user training data
     const userData = getTrainingData();
     
-    // Get default data
-    const defaultData = getDefaultASLAlphabet();
-    
-    // If no default data, return just user data
-    if (!defaultData || defaultData.length === 0) {
-      return userData;
-    }
-    
-    // If no user data, return default alphabet
-    if (userData.length === 0) {
-      return defaultData;
-    }
-    
-    // Combine user data with defaults for letters not trained by user
-    const userLetters = userData.map(item => item.letter);
-    const combinedData = [...userData];
-    
-    defaultData.forEach(defaultItem => {
-      if (!userLetters.includes(defaultItem.letter)) {
-        combinedData.push(defaultItem);
+    // Get default data using dynamic import
+    return import('../utils/defaultASLAlphabet').then(module => {
+      const defaultData = module.getDefaultASLAlphabet();
+      
+      // If no default data, return just user data
+      if (!defaultData || defaultData.length === 0) {
+        return userData;
       }
+      
+      // If no user data, return default alphabet
+      if (userData.length === 0) {
+        return defaultData;
+      }
+      
+      // Combine user data with defaults for letters not trained by user
+      const userLetters = userData.map(item => item.letter);
+      const combinedData = [...userData];
+      
+      defaultData.forEach(defaultItem => {
+        if (!userLetters.includes(defaultItem.letter)) {
+          combinedData.push(defaultItem);
+        }
+      });
+      
+      return combinedData;
+    }).catch(error => {
+      console.error("Error importing default alphabet:", error);
+      return userData; // Fallback to user data only
     });
-    
-    return combinedData;
   } catch (error) {
     console.error("Error combining training data:", error);
+    return getTrainingData(); // Fallback to user data only
+  }
+};
+
+/**
+ * Get combined training data synchronously (for immediate use)
+ * This avoids the promise-based approach when we need data right away
+ */
+export const getCombinedTrainingDataSync = (): TrainingData[] => {
+  try {
+    // Get user training data
+    const userData = getTrainingData();
     
-    // Fallback to default alphabet if available
-    try {
-      const { getDefaultASLAlphabet } = require('../utils/defaultASLAlphabet');
-      return getDefaultASLAlphabet();
-    } catch (fallbackError) {
-      console.error("Fallback to default alphabet failed:", fallbackError);
-      return [];
+    // Try to get default data from local storage cache if available
+    const cachedDefaultData = localStorage.getItem('asl-default-alphabet-cache');
+    if (cachedDefaultData) {
+      try {
+        const defaultData = JSON.parse(cachedDefaultData);
+        
+        // If no user data, return default alphabet
+        if (userData.length === 0) {
+          return defaultData;
+        }
+        
+        // Combine user data with defaults for letters not trained by user
+        const userLetters = userData.map(item => item.letter);
+        const combinedData = [...userData];
+        
+        defaultData.forEach(defaultItem => {
+          if (!userLetters.includes(defaultItem.letter)) {
+            combinedData.push(defaultItem);
+          }
+        });
+        
+        return combinedData;
+      } catch (error) {
+        console.error("Error parsing cached default alphabet:", error);
+      }
     }
+    
+    // Fallback to just user data if no cached defaults
+    return userData;
+  } catch (error) {
+    console.error("Error in getCombinedTrainingDataSync:", error);
+    return [];
   }
 };
 

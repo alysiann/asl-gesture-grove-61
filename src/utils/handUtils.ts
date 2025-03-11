@@ -1,7 +1,7 @@
 
 import * as handpose from '@tensorflow-models/handpose';
 import '@tensorflow/tfjs-backend-webgl';
-import { getCombinedTrainingData, TrainingData } from '../services/trainingService';
+import { getCombinedTrainingDataSync, TrainingData } from '../services/trainingService';
 
 // Initialize handpose model with optimized parameters
 export const loadHandposeModel = async (): Promise<handpose.HandPose> => {
@@ -85,9 +85,10 @@ export const recognizeASLLetter = (predictions: handpose.AnnotatedPrediction[]):
   }
   
   try {
-    // Get combined training data (user + defaults)
-    const trainingData = getCombinedTrainingData();
+    // Get combined training data (user + defaults) synchronously
+    const trainingData = getCombinedTrainingDataSync();
     if (trainingData.length === 0) {
+      console.warn("No training data available for recognition");
       return '';
     }
     
