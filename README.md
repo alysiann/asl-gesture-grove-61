@@ -126,7 +126,44 @@ npm run dev
 
 ## Deployment
 
+### Lovable Platform
 Simply open [Lovable](https://lovable.dev/projects/1eb87f48-f66c-4bb5-b43a-a8e493148622) and click on Share -> Publish.
+
+### Deployment to Vercel, Netlify, or Other Hosting Services
+
+This application can be easily deployed on various free hosting platforms:
+
+#### Vercel
+1. Create a Vercel account if you don't have one
+2. Connect your GitHub repository to Vercel
+3. Configure the build settings:
+   - Build Command: `npm run build`
+   - Output Directory: `dist`
+4. Deploy the application
+
+#### Netlify
+1. Create a Netlify account
+2. Connect your GitHub repository or upload the build folder directly
+3. Configure the build settings:
+   - Build Command: `npm run build`
+   - Publish Directory: `dist`
+4. Deploy the application
+
+#### GitHub Pages
+1. Add a `homepage` field to your package.json: `"homepage": "https://yourusername.github.io/your-repo-name"`
+2. Install gh-pages: `npm install --save-dev gh-pages`
+3. Add deployment scripts to package.json:
+   ```json
+   "predeploy": "npm run build",
+   "deploy": "gh-pages -d dist"
+   ```
+4. Run `npm run deploy`
+
+### Important Deployment Notes
+
+Since this application uses the browser's camera, ensure your deployment has an HTTPS connection for WebRTC APIs to work properly. Most hosting services provide this by default.
+
+The application is fully client-side and doesn't require a backend server, making it perfect for static site hosting platforms.
 
 ## Custom Domain Setup
 
