@@ -1,5 +1,6 @@
 
 import React, { useRef, useEffect, lazy, Suspense } from 'react';
+import { SignLanguage } from '@/services/trainingService';
 
 const HandDetectionComponent = lazy(() => import('@/components/HandDetection'));
 
@@ -8,7 +9,7 @@ interface WebcamProps {
   onLetterRecognized?: (letter: string) => void;
   onFeatureExtracted?: (features: number[]) => void;
   trainingMode?: boolean;
-  signLanguage?: string;
+  signLanguage?: SignLanguage;
 }
 
 const Webcam: React.FC<WebcamProps> = ({ onHandDetected, onLetterRecognized, onFeatureExtracted, trainingMode, signLanguage }) => {

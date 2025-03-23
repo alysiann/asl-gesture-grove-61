@@ -1,4 +1,3 @@
-
 import { recognizeASLLetter as originalRecognizeASLLetter } from './handUtils';
 import { getCombinedTrainingDataSync, SignLanguage } from '../services/trainingService';
 
@@ -119,7 +118,10 @@ export const monkeyPatchHandUtils = () => {
   (window as any).__originalRecognizeASLLetter = originalFunction;
 
   // Replace the original function with our new one that supports languages
-  (window as any).recognizeASLLetter = (predictions: any, language?: SignLanguage) => {
-    return recognizeSignLanguageLetter(predictions, language);
+  // The global window property for the function is needed for handUtils.ts to use the patched version
+  (window as any).recognizeASLLetter = (predictions: any) => {
+    // Get active language from storage at call time to ensure it's always current
+    const activeLanguage = localStorage.getItem('current-sign-language') as SignLanguage || 'ASL';
+    return recognizeSignLanguageLetter(predictions, activeLanguage);
   };
 };

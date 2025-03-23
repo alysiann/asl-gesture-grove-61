@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as handpose from '@tensorflow-models/handpose';
 import '@tensorflow/tfjs-backend-webgl';
@@ -44,14 +43,12 @@ const HandDetection: React.FC<HandDetectionProps> = ({
   const skipFrames = useRef<number>(0);
   const modelError = useRef<boolean>(false);
   
-  // Update active language when prop changes
   useEffect(() => {
     if (signLanguage) {
       setActiveLanguage(signLanguage);
     }
   }, [signLanguage]);
   
-  // Load the model
   useEffect(() => {
     let isMounted = true;
     
@@ -100,7 +97,6 @@ const HandDetection: React.FC<HandDetectionProps> = ({
     };
   }, []);
   
-  // Debounced feature extraction to improve performance
   const debouncedFeatureExtraction = useCallback((features: number[]) => {
     if (featureExtractionTimeout.current) {
       clearTimeout(featureExtractionTimeout.current);
@@ -110,10 +106,9 @@ const HandDetection: React.FC<HandDetectionProps> = ({
       if (features.length > 0 && onFeatureExtracted) {
         onFeatureExtracted(features);
       }
-    }, 150); // 150ms debounce time
+    }, 150);
   }, [onFeatureExtracted]);
   
-  // Draw hand landmarks
   const drawHand = useCallback((
     predictions: handpose.AnnotatedPrediction[],
     ctx: CanvasRenderingContext2D
@@ -125,27 +120,24 @@ const HandDetection: React.FC<HandDetectionProps> = ({
       const landmarks = prediction.landmarks;
       if (!landmarks || landmarks.length === 0) return;
       
-      // Draw keypoints (only every other point for better performance)
       for (let i = 0; i < landmarks.length; i += 2) {
         const [x, y] = landmarks[i];
         ctx.beginPath();
         ctx.arc(x, y, 5, 0, 3 * Math.PI);
-        ctx.fillStyle = "#3B82F6"; // Blue
+        ctx.fillStyle = "#3B82F6";
         ctx.fill();
       }
       
-      // Draw lines between keypoints
       const fingerJoints = [
-        [0, 1, 2, 3, 4], // Thumb
-        [0, 5, 6, 7, 8], // Index
-        [0, 9, 10, 11, 12], // Middle
-        [0, 13, 14, 15, 16], // Ring
-        [0, 17, 18, 19, 20] // Pinky
+        [0, 1, 2, 3, 4],
+        [0, 5, 6, 7, 8],
+        [0, 9, 10, 11, 12],
+        [0, 13, 14, 15, 16],
+        [0, 17, 18, 19, 20]
       ];
       
-      // Draw lines (with simpler rendering)
       ctx.lineWidth = 3;
-      ctx.strokeStyle = "#60a5fa"; // Lighter blue
+      ctx.strokeStyle = "#60a5fa";
       
       fingerJoints.forEach((finger) => {
         ctx.beginPath();
@@ -166,7 +158,6 @@ const HandDetection: React.FC<HandDetectionProps> = ({
     }
   }, []);
   
-  // Run predictions with frame skipping for performance
   useEffect(() => {
     if (modelError.current || !model || !webcamRef.current) return;
     
@@ -180,7 +171,6 @@ const HandDetection: React.FC<HandDetectionProps> = ({
         return;
       }
       
-      // Skip frames for performance (process only every 2nd frame)
       if (skipFrames.current < 1) {
         skipFrames.current++;
         predictionLoop.current = requestAnimationFrame(runPrediction);
@@ -189,28 +179,22 @@ const HandDetection: React.FC<HandDetectionProps> = ({
       skipFrames.current = 0;
       
       try {
-        // Get video dimensions
         const video = webcamRef.current;
         const videoWidth = video.videoWidth;
         const videoHeight = video.videoHeight;
         
-        // Set canvas dimensions
         const canvas = canvasRef.current;
         canvas.width = videoWidth;
         canvas.height = videoHeight;
         
-        // Make predictions
         const predictions = await model.estimateHands(video);
         
-        // Check if hand is detected
         const handDetected = isHandDetected(predictions);
         
-        // Notify about hand detection state changes
         if (handDetected !== handPresent) {
           setHandPresent(handDetected);
           onHandDetected?.(handDetected);
           
-          // Show toast when hand is detected, but limit frequency
           const now = Date.now();
           if (now - lastToastTime.current > 3000) {
             toast(`Hand ${handDetected ? "detected" : "lost"}`, {
@@ -220,20 +204,16 @@ const HandDetection: React.FC<HandDetectionProps> = ({
           }
         }
         
-        // Process hand when detected
         if (handDetected && predictions.length > 0) {
           const landmarks = predictions[0].landmarks;
           
-          // In training mode, extract features when hand is detected
           if (trainingMode) {
             const features = landmarksToFeatureVector(landmarks);
             if (features.length > 0) {
               debouncedFeatureExtraction(features);
             }
-          } 
-          // In recognition mode, recognize letters using the active language
-          else {
-            const letter = recognizeASLLetter(predictions, activeLanguage);
+          } else {
+            const letter = recognizeASLLetter(predictions);
             if (letter && letter !== detectedLetter) {
               setDetectedLetter(letter);
               onLetterRecognized?.(letter);
@@ -242,14 +222,12 @@ const HandDetection: React.FC<HandDetectionProps> = ({
             }
           }
           
-          // Draw hand landmarks on canvas
           const ctx = canvas.getContext('2d');
           if (ctx) {
             ctx.clearRect(0, 0, videoWidth, videoHeight);
             drawHand(predictions, ctx);
           }
         } else {
-          // Clear canvas if no hand
           const ctx = canvas.getContext('2d');
           if (ctx) {
             ctx.clearRect(0, 0, videoWidth, videoHeight);
@@ -263,7 +241,6 @@ const HandDetection: React.FC<HandDetectionProps> = ({
         console.error("Error during hand detection:", error);
       }
       
-      // Continue prediction loop
       predictionLoop.current = requestAnimationFrame(runPrediction);
     };
     
@@ -277,7 +254,6 @@ const HandDetection: React.FC<HandDetectionProps> = ({
     };
   }, [model, webcamRef, detectedLetter, handPresent, onHandDetected, onLetterRecognized, debouncedFeatureExtraction, trainingMode, drawHand, activeLanguage]);
   
-  // Simple loading view
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center p-4 sm:p-8">
@@ -288,7 +264,6 @@ const HandDetection: React.FC<HandDetectionProps> = ({
     );
   }
   
-  // Show error if model failed to load
   if (modelError.current) {
     return (
       <div className="flex flex-col items-center justify-center p-8 text-center">
