@@ -1,7 +1,7 @@
 
 # ASL Recognition System
 
-This application is an American Sign Language (ASL) recognition system that uses machine learning to detect and recognize hand gestures in real-time. It allows users to train custom gestures for improved accuracy.
+This application is a Sign Language recognition system that uses machine learning to detect and recognize hand gestures in real-time. It supports both American Sign Language (ASL) and Filipino Sign Language (FSL), allowing users to train custom gestures for improved accuracy.
 
 ## Project Overview
 
@@ -9,17 +9,21 @@ This application is an American Sign Language (ASL) recognition system that uses
 
 ## Features
 
-- **Real-time ASL Letter Recognition**: Recognizes American Sign Language alphabet gestures through a webcam
+- **Multilingual Sign Language Support**: 
+  - American Sign Language (ASL) alphabet recognition
+  - Filipino Sign Language (FSL) alphabet recognition
+- **Real-time Letter Recognition**: Recognizes sign language alphabet gestures through a webcam
 - **Custom Training Mode**: Train the system with your own hand gestures for improved accuracy
 - **Combined Recognition Model**: Uses both pre-trained defaults and user training data
 - **Gesture History**: Tracks recently recognized gestures 
-- **Visual Reference**: Shows the ASL alphabet for learning purposes
+- **Visual Reference**: Shows the alphabet for learning purposes
+- **Language Switching**: Easily switch between ASL and FSL
 
 ## How It Works
 
 ### Recognition System
 
-The application uses TensorFlow.js and the Handpose model to detect hand landmarks in real-time through the user's webcam. These landmarks are processed to extract features which are then compared against training data to recognize the corresponding ASL letter.
+The application uses TensorFlow.js and the Handpose model to detect hand landmarks in real-time through the user's webcam. These landmarks are processed to extract features which are then compared against training data to recognize the corresponding sign language letter.
 
 #### Technical Process:
 
@@ -30,15 +34,16 @@ The application uses TensorFlow.js and the Handpose model to detect hand landmar
 
 ### Training System
 
-Users can train the system with custom gestures to improve recognition accuracy for their specific hand shapes and signing style.
+Users can train the system with custom gestures to improve recognition accuracy for their specific hand shapes and signing style. The system supports training for both ASL and FSL.
 
 #### Training Process:
 
-1. Select a letter to train from A-Z
-2. Position your hand in the ASL gesture for that letter
-3. Capture multiple samples (5-10 recommended) with slight variations
-4. Save the training data
-5. Repeat for different letters as needed
+1. Select the sign language (ASL or FSL)
+2. Select a letter to train from A-Z (plus Ñ and NG for FSL)
+3. Position your hand in the sign language gesture for that letter
+4. Capture multiple samples (5-10 recommended) with slight variations
+5. Save the training data
+6. Repeat for different letters as needed
 
 The system combines user-trained data with default training data, prioritizing user-trained gestures when available.
 
@@ -67,36 +72,41 @@ The application is structured around these key components:
 
 1. **Webcam Component**: Handles camera access and video display
 2. **HandDetection Component**: Processes video frames through the Handpose model
-3. **Training Service**: Manages saving and loading of training data
+3. **Training Service**: Manages saving and loading of training data for different sign languages
 4. **Hand Utilities**: Contains algorithms for feature extraction and gesture recognition
 5. **Recognition/Training Pages**: User interfaces for the two main application modes
+6. **Language Selector**: UI for switching between sign languages
 
 ## How to Use
 
 ### Recognition Mode
 
 1. Navigate to the Recognition page
-2. Allow camera access when prompted
-3. Position your hand in frame making ASL letter gestures
-4. The system will display recognized letters in real-time
-5. Recently recognized letters appear in the history panel
+2. Select your preferred sign language (ASL or FSL)
+3. Allow camera access when prompted
+4. Position your hand in frame making sign language letter gestures
+5. The system will display recognized letters in real-time
+6. Recently recognized letters appear in the history panel
 
 ### Training Mode
 
 1. Navigate to the Training page
-2. Select a letter to train from the grid
-3. Position your hand in the ASL gesture for that letter
-4. Click "Capture Sample" to store the current hand position
-5. Capture 5-10 samples with slight variations
-6. Click "Save Training Data" when finished
-7. Repeat for each letter you want to train
+2. Select your preferred sign language (ASL or FSL)
+3. Select a letter to train from the grid
+4. Position your hand in the sign language gesture for that letter
+5. Click "Capture Sample" to store the current hand position
+6. Capture 5-10 samples with slight variations
+7. Click "Save Training Data" when finished
+8. Repeat for each letter you want to train
 
 ## Data Storage
 
 The application stores all training data in the browser's localStorage:
 
-- **User training data**: Stored under the key 'asl-training-data'
-- **Default training data cache**: Stored under the key 'asl-default-alphabet-cache'
+- **ASL user training data**: Stored under the key 'asl-training-data'
+- **FSL user training data**: Stored under the key 'fsl-training-data'
+- **Default training data cache**: Stored under the keys 'asl-default-alphabet-cache' and 'fsl-default-alphabet-cache'
+- **Current language preference**: Stored under the key 'current-sign-language'
 
 No data is sent to external servers, ensuring privacy.
 
@@ -173,11 +183,13 @@ We don't support custom domains yet. If you want to deploy your project under yo
 
 Potential enhancements for the system:
 
-- Support for full ASL words and phrases beyond individual letters
+- Support for additional sign languages beyond ASL and FSL
+- Support for full sign language words and phrases beyond individual letters
 - Multi-hand detection for more complex gestures
 - Improved recognition accuracy through deeper neural networks
 - Offline support with model download for use without internet
-- Integration with learning tools for ASL education
+- Integration with learning tools for sign language education
+- Mobile app version using React Native
 
 ## License
 

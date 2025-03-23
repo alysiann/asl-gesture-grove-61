@@ -8,25 +8,40 @@ import InfoPanel from '@/components/recognize/InfoPanel';
 import RecognitionStatus from '@/components/recognize/RecognitionStatus';
 import RecognitionHistory from '@/components/recognize/RecognitionHistory';
 import ASLAlphabet from '@/components/recognize/ASLAlphabet';
-import { getTrainingData } from '@/services/trainingService';
+import LanguageSelector from '@/components/LanguageSelector';
+import { useSignLanguage } from '@/hooks/use-sign-language';
+import { 
+  getTrainingData, 
+  SignLanguage, 
+  getActiveSignLanguage, 
+  setActiveSignLanguage 
+} from '@/services/trainingService';
 import { getDefaultASLAlphabet } from '@/utils/defaultASLAlphabet';
+import { getDefaultFSLAlphabet } from '@/utils/defaultFSLAlphabet';
 
 const Recognize: React.FC = () => {
+  // Initialize sign language support
+  useSignLanguage();
+  
   const [isHandDetected, setIsHandDetected] = useState<boolean>(false);
   const [recognizedLetter, setRecognizedLetter] = useState<string>('');
   const [detectionHistory, setDetectionHistory] = useState<string[]>([]);
   const [showInfo, setShowInfo] = useState<boolean>(false);
   const [isReady, setIsReady] = useState<boolean>(false);
+  const [activeLanguage, setActiveLanguage] = useState<SignLanguage>(getActiveSignLanguage());
   
   // Initialize default alphabet cache for faster recognition
   useEffect(() => {
     try {
-      // Cache default alphabet in localStorage for faster access
-      const defaultAlphabet = getDefaultASLAlphabet();
-      localStorage.setItem('asl-default-alphabet-cache', JSON.stringify(defaultAlphabet));
+      // Cache default alphabets in localStorage for faster access
+      const defaultASLAlphabet = getDefaultASLAlphabet();
+      localStorage.setItem('asl-default-alphabet-cache', JSON.stringify(defaultASLAlphabet));
       
-      // Check if we have user training data
-      const userData = getTrainingData();
+      const defaultFSLAlphabet = getDefaultFSLAlphabet();
+      localStorage.setItem('fsl-default-alphabet-cache', JSON.stringify(defaultFSLAlphabet));
+      
+      // Check if we have user training data for active language
+      const userData = getTrainingData(activeLanguage);
       
       // Set ready state
       setIsReady(true);
@@ -34,12 +49,12 @@ const Recognize: React.FC = () => {
       // Show appropriate toast
       if (userData.length > 0) {
         toast.success("Recognition system ready", {
-          description: `Ready with ${userData.length} custom trained letters plus defaults`,
+          description: `Ready with ${userData.length} custom trained letters plus defaults for ${activeLanguage}`,
           duration: 3000,
         });
       } else {
         toast.success("Recognition system ready", {
-          description: "Using default ASL alphabet recognition",
+          description: `Using default ${activeLanguage} alphabet recognition`,
           duration: 3000,
         });
       }
@@ -53,7 +68,7 @@ const Recognize: React.FC = () => {
         duration: 3000,
       });
     }
-  }, []);
+  }, [activeLanguage]);
   
   const handleHandDetection = (detected: boolean) => {
     setIsHandDetected(detected);
@@ -80,6 +95,13 @@ const Recognize: React.FC = () => {
     setDetectionHistory([]);
   };
   
+  const handleLanguageChange = (language: SignLanguage) => {
+    setActiveLanguage(language);
+    setActiveSignLanguage(language);
+    setRecognizedLetter('');
+    setDetectionHistory([]);
+  };
+  
   // Reset recognition when the component unmounts
   useEffect(() => {
     return () => {
@@ -100,11 +122,17 @@ const Recognize: React.FC = () => {
       
       <div className="container mx-auto px-4 pt-24 pb-16">
         <div className="max-w-3xl mx-auto">
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="text-2xl font-bold">Recognition Mode</h1>
+            <LanguageSelector onLanguageChange={handleLanguageChange} />
+          </div>
+          
           <InfoPanel showInfo={showInfo} setShowInfo={setShowInfo} />
           
           <Webcam 
             onHandDetected={handleHandDetection}
-            onLetterRecognized={handleLetterRecognition}
+            onLetterRecognized={handleLetterRecognized}
+            signLanguage={activeLanguage}
           />
           
           <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -119,7 +147,10 @@ const Recognize: React.FC = () => {
             />
           </div>
           
-          <ASLAlphabet recognizedLetter={recognizedLetter} />
+          <ASLAlphabet 
+            recognizedLetter={recognizedLetter} 
+            activeLanguage={activeLanguage}
+          />
         </div>
       </div>
     </motion.div>

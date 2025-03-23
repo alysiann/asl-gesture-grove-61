@@ -11,6 +11,7 @@ import {
   isHandDetected,
   landmarksToFeatureVector
 } from '@/utils/handUtils';
+import { SignLanguage, getActiveSignLanguage } from '@/services/trainingService';
 
 interface HandDetectionProps {
   webcamRef: React.RefObject<HTMLVideoElement>;
@@ -18,6 +19,7 @@ interface HandDetectionProps {
   onLetterRecognized?: (letter: string) => void;
   onFeatureExtracted?: (features: number[]) => void;
   trainingMode?: boolean;
+  signLanguage?: SignLanguage;
 }
 
 const HandDetection: React.FC<HandDetectionProps> = ({
@@ -25,18 +27,29 @@ const HandDetection: React.FC<HandDetectionProps> = ({
   onHandDetected,
   onLetterRecognized,
   onFeatureExtracted,
-  trainingMode = false
+  trainingMode = false,
+  signLanguage
 }) => {
   const [model, setModel] = useState<handpose.HandPose | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [detectedLetter, setDetectedLetter] = useState<string>('');
   const [handPresent, setHandPresent] = useState<boolean>(false);
+  const [activeLanguage, setActiveLanguage] = useState<SignLanguage>(
+    signLanguage || getActiveSignLanguage()
+  );
   const lastToastTime = useRef<number>(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const predictionLoop = useRef<number | null>(null);
   const featureExtractionTimeout = useRef<NodeJS.Timeout | null>(null);
   const skipFrames = useRef<number>(0);
   const modelError = useRef<boolean>(false);
+  
+  // Update active language when prop changes
+  useEffect(() => {
+    if (signLanguage) {
+      setActiveLanguage(signLanguage);
+    }
+  }, [signLanguage]);
   
   // Load the model
   useEffect(() => {
@@ -53,7 +66,7 @@ const HandDetection: React.FC<HandDetectionProps> = ({
         setModel(loadedModel);
         setLoading(false);
         toast.success("Hand detection model loaded", {
-          description: "Ready to recognize ASL gestures",
+          description: "Ready to recognize gestures",
           duration: 3000,
         });
       } catch (error) {
@@ -218,9 +231,9 @@ const HandDetection: React.FC<HandDetectionProps> = ({
               debouncedFeatureExtraction(features);
             }
           } 
-          // In recognition mode, recognize letters
+          // In recognition mode, recognize letters using the active language
           else {
-            const letter = recognizeASLLetter(predictions);
+            const letter = recognizeASLLetter(predictions, activeLanguage);
             if (letter && letter !== detectedLetter) {
               setDetectedLetter(letter);
               onLetterRecognized?.(letter);
@@ -262,7 +275,7 @@ const HandDetection: React.FC<HandDetectionProps> = ({
         predictionLoop.current = null;
       }
     };
-  }, [model, webcamRef, detectedLetter, handPresent, onHandDetected, onLetterRecognized, debouncedFeatureExtraction, trainingMode, drawHand]);
+  }, [model, webcamRef, detectedLetter, handPresent, onHandDetected, onLetterRecognized, debouncedFeatureExtraction, trainingMode, drawHand, activeLanguage]);
   
   // Simple loading view
   if (loading) {

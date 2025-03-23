@@ -1,14 +1,19 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
+import { SignLanguage } from '@/services/trainingService';
 
 interface ASLAlphabetProps {
   recognizedLetter: string;
+  activeLanguage: SignLanguage;
 }
 
 const ASL_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
+const FSL_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'Ñ', 'NG', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
 
-const ASLAlphabet: React.FC<ASLAlphabetProps> = ({ recognizedLetter }) => {
+const ASLAlphabet: React.FC<ASLAlphabetProps> = ({ recognizedLetter, activeLanguage }) => {
+  const letters = activeLanguage === 'ASL' ? ASL_LETTERS : FSL_LETTERS;
+  
   return (
     <motion.div 
       className="mt-8 glass rounded-xl p-6"
@@ -16,9 +21,11 @@ const ASLAlphabet: React.FC<ASLAlphabetProps> = ({ recognizedLetter }) => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 0.4 }}
     >
-      <h2 className="text-xl font-medium mb-4">ASL Alphabet</h2>
+      <h2 className="text-xl font-medium mb-4">
+        {activeLanguage === 'ASL' ? 'ASL' : 'Filipino SL'} Alphabet
+      </h2>
       <div className="grid grid-cols-6 sm:grid-cols-9 gap-2">
-        {ASL_LETTERS.map((letter) => (
+        {letters.map((letter) => (
           <motion.div 
             key={letter}
             className={`aspect-square glass p-2 rounded-lg flex items-center justify-center

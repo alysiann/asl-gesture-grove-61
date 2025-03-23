@@ -6,13 +6,24 @@ import { toast } from "sonner";
 import TrainingInfo from '@/components/train/TrainingInfo';
 import TrainingStatus from '@/components/train/TrainingStatus';
 import TrainLetterSelector from '@/components/train/TrainLetterSelector';
-import { saveTrainingData, getTrainingData } from '@/services/trainingService';
+import LanguageSelector from '@/components/LanguageSelector';
+import { useSignLanguage } from '@/hooks/use-sign-language';
+import { 
+  saveTrainingData, 
+  getTrainingData, 
+  SignLanguage, 
+  getActiveSignLanguage 
+} from '@/services/trainingService';
 
 const Train: React.FC = () => {
+  // Initialize sign language support
+  useSignLanguage();
+
   const [isHandDetected, setIsHandDetected] = useState<boolean>(false);
   const [selectedLetter, setSelectedLetter] = useState<string>('');
   const [sampleCount, setSampleCount] = useState<number>(0);
   const [showInfo, setShowInfo] = useState<boolean>(true);
+  const [activeLanguage, setActiveLanguage] = useState<SignLanguage>(getActiveSignLanguage());
   const samplesRef = useRef<number[][]>([]);
   const [currentFeatures, setCurrentFeatures] = useState<number[]>([]);
   const featureUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -25,7 +36,7 @@ const Train: React.FC = () => {
       setSampleCount(0);
       
       // Check if we have existing samples for this letter
-      const existingData = getTrainingData();
+      const existingData = getTrainingData(activeLanguage);
       const letterData = existingData.find(data => data.letter === selectedLetter);
       
       if (letterData) {
@@ -36,7 +47,7 @@ const Train: React.FC = () => {
         });
       }
     }
-  }, [selectedLetter]);
+  }, [selectedLetter, activeLanguage]);
   
   // Handle hand detection with useCallback for better performance
   const handleHandDetection = useCallback((detected: boolean) => {
@@ -105,20 +116,28 @@ const Train: React.FC = () => {
     }
     
     // Save training data
-    saveTrainingData(selectedLetter, samplesRef.current);
+    saveTrainingData(selectedLetter, samplesRef.current, activeLanguage);
     
     toast.success("Training data saved successfully", {
-      description: `${sampleCount} samples for letter ${selectedLetter} saved`,
+      description: `${sampleCount} samples for letter ${selectedLetter} saved for ${activeLanguage}`,
     });
     
     // Reset after save
     samplesRef.current = [];
     setSampleCount(0);
     setSelectedLetter('');
-  }, [sampleCount, selectedLetter]);
+  }, [sampleCount, selectedLetter, activeLanguage]);
   
   const handleToggleInfo = useCallback(() => {
     setShowInfo(prev => !prev);
+  }, []);
+  
+  const handleLanguageChange = useCallback((language: SignLanguage) => {
+    setActiveLanguage(language);
+    // Reset selection when changing language
+    setSelectedLetter('');
+    samplesRef.current = [];
+    setSampleCount(0);
   }, []);
   
   return (
@@ -127,6 +146,11 @@ const Train: React.FC = () => {
       
       <div className="container mx-auto px-4 pt-16 sm:pt-20 md:pt-24 pb-16">
         <div className="max-w-4xl mx-auto">
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="text-2xl font-bold">Train Mode</h1>
+            <LanguageSelector onLanguageChange={handleLanguageChange} />
+          </div>
+          
           <TrainingInfo 
             showInfo={showInfo} 
             onToggleInfo={handleToggleInfo} 
@@ -150,6 +174,7 @@ const Train: React.FC = () => {
             <TrainLetterSelector 
               selectedLetter={selectedLetter}
               onSelectLetter={setSelectedLetter}
+              activeLanguage={activeLanguage}
             />
           </div>
         </div>

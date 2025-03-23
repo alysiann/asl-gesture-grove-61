@@ -1,4 +1,8 @@
 
+// Import statements at the top level
+import { getDefaultASLAlphabet } from '../utils/defaultASLAlphabet';
+import { getDefaultFSLAlphabet } from '../utils/defaultFSLAlphabet';
+
 // Define types for our training data
 export interface TrainingData {
   letter: string;
@@ -6,19 +10,54 @@ export interface TrainingData {
   timestamp: number;
 }
 
-// Import defaultASLAlphabet at the top level
-import { getDefaultASLAlphabet } from '../utils/defaultASLAlphabet';
+export type SignLanguage = 'ASL' | 'FSL';
 
-// Local storage key
+// Local storage keys
 const TRAINING_DATA_KEY = 'asl-training-data';
+const TRAINING_DATA_KEY_FSL = 'fsl-training-data';
+const CURRENT_LANGUAGE_KEY = 'current-sign-language';
+
+/**
+ * Set active sign language
+ */
+export const setActiveSignLanguage = (language: SignLanguage): void => {
+  try {
+    localStorage.setItem(CURRENT_LANGUAGE_KEY, language);
+  } catch (error) {
+    console.error("Error saving active sign language:", error);
+  }
+};
+
+/**
+ * Get active sign language
+ */
+export const getActiveSignLanguage = (): SignLanguage => {
+  try {
+    const language = localStorage.getItem(CURRENT_LANGUAGE_KEY);
+    return (language as SignLanguage) || 'ASL';
+  } catch (error) {
+    console.error("Error getting active sign language:", error);
+    return 'ASL';
+  }
+};
+
+/**
+ * Get storage key based on language
+ */
+const getStorageKey = (language: SignLanguage = getActiveSignLanguage()): string => {
+  return language === 'ASL' ? TRAINING_DATA_KEY : TRAINING_DATA_KEY_FSL;
+};
 
 /**
  * Save training data for a letter
  */
-export const saveTrainingData = (letter: string, samples: number[][]): void => {
+export const saveTrainingData = (letter: string, samples: number[][], language?: SignLanguage): void => {
   try {
+    const activeLanguage = language || getActiveSignLanguage();
+    const storageKey = getStorageKey(activeLanguage);
+    
     // Get existing data
-    const existingData = getTrainingData();
+    const existingData = getTrainingData(activeLanguage);
     
     // Create new entry or update existing
     const newEntry: TrainingData = {
@@ -39,7 +78,7 @@ export const saveTrainingData = (letter: string, samples: number[][]): void => {
     }
     
     // Save to localStorage
-    localStorage.setItem(TRAINING_DATA_KEY, JSON.stringify(existingData));
+    localStorage.setItem(storageKey, JSON.stringify(existingData));
   } catch (error) {
     console.error("Error saving training data:", error);
     throw new Error("Failed to save training data");
@@ -49,9 +88,12 @@ export const saveTrainingData = (letter: string, samples: number[][]): void => {
 /**
  * Get all training data
  */
-export const getTrainingData = (): TrainingData[] => {
+export const getTrainingData = (language?: SignLanguage): TrainingData[] => {
   try {
-    const data = localStorage.getItem(TRAINING_DATA_KEY);
+    const activeLanguage = language || getActiveSignLanguage();
+    const storageKey = getStorageKey(activeLanguage);
+    
+    const data = localStorage.getItem(storageKey);
     return data ? JSON.parse(data) : [];
   } catch (error) {
     console.error("Error getting training data:", error);
@@ -62,20 +104,30 @@ export const getTrainingData = (): TrainingData[] => {
 /**
  * Check if any training data exists
  */
-export const hasTrainingData = (): boolean => {
-  return getTrainingData().length > 0;
+export const hasTrainingData = (language?: SignLanguage): boolean => {
+  return getTrainingData(language).length > 0;
 };
 
 /**
- * Get combined training data (user trained + defaults) - async version
+ * Get combined training data (user trained + defaults)
  */
-export const getCombinedTrainingData = async (): Promise<TrainingData[]> => {
+export const getCombinedTrainingData = (language?: SignLanguage): TrainingData[] => {
   try {
-    // Get user training data
-    const userData = getTrainingData();
+    const activeLanguage = language || getActiveSignLanguage();
     
-    // Get default data
-    const defaultData = getDefaultASLAlphabet();
+    // Get user training data
+    const userData = getTrainingData(activeLanguage);
+    
+    // Get default data based on language
+    let defaultData: TrainingData[] = [];
+    
+    if (activeLanguage === 'ASL') {
+      const cachedDefaultData = localStorage.getItem('asl-default-alphabet-cache');
+      defaultData = cachedDefaultData ? JSON.parse(cachedDefaultData) : getDefaultASLAlphabet();
+    } else {
+      const cachedDefaultData = localStorage.getItem('fsl-default-alphabet-cache');
+      defaultData = cachedDefaultData ? JSON.parse(cachedDefaultData) : getDefaultFSLAlphabet();
+    }
     
     // If no default data, return just user data
     if (!defaultData || defaultData.length === 0) {
@@ -100,72 +152,48 @@ export const getCombinedTrainingData = async (): Promise<TrainingData[]> => {
     return combinedData;
   } catch (error) {
     console.error("Error combining training data:", error);
-    return getTrainingData(); // Fallback to user data only
+    return getTrainingData(language); // Fallback to user data only
   }
 };
 
 /**
  * Get combined training data synchronously (for immediate use)
- * This avoids the promise-based approach when we need data right away
  */
-export const getCombinedTrainingDataSync = (): TrainingData[] => {
+export const getCombinedTrainingDataSync = (language?: SignLanguage): TrainingData[] => {
   try {
+    const activeLanguage = language || getActiveSignLanguage();
+    
     // Get user training data
-    const userData = getTrainingData();
+    const userData = getTrainingData(activeLanguage);
     
     // Try to get default data from local storage cache if available
-    const cachedDefaultData = localStorage.getItem('asl-default-alphabet-cache');
-    if (cachedDefaultData) {
-      try {
-        const defaultData = JSON.parse(cachedDefaultData);
-        
-        // If no user data, return default alphabet
-        if (userData.length === 0) {
-          return defaultData;
-        }
-        
-        // Combine user data with defaults for letters not trained by user
-        const userLetters = userData.map(item => item.letter);
-        const combinedData = [...userData];
-        
-        defaultData.forEach(defaultItem => {
-          if (!userLetters.includes(defaultItem.letter)) {
-            combinedData.push(defaultItem);
-          }
-        });
-        
-        return combinedData;
-      } catch (error) {
-        console.error("Error parsing cached default alphabet:", error);
-      }
+    let cachedDefaultData;
+    let defaultData;
+    
+    if (activeLanguage === 'ASL') {
+      cachedDefaultData = localStorage.getItem('asl-default-alphabet-cache');
+      defaultData = cachedDefaultData ? JSON.parse(cachedDefaultData) : getDefaultASLAlphabet();
+    } else {
+      cachedDefaultData = localStorage.getItem('fsl-default-alphabet-cache');
+      defaultData = cachedDefaultData ? JSON.parse(cachedDefaultData) : getDefaultFSLAlphabet();
     }
     
-    // If no cached data, use the default alphabet directly
-    try {
-      const defaultData = getDefaultASLAlphabet();
-      
-      // If no user data, return default alphabet
-      if (userData.length === 0) {
-        return defaultData;
-      }
-      
-      // Combine user data with defaults for letters not trained by user
-      const userLetters = userData.map(item => item.letter);
-      const combinedData = [...userData];
-      
-      defaultData.forEach(defaultItem => {
-        if (!userLetters.includes(defaultItem.letter)) {
-          combinedData.push(defaultItem);
-        }
-      });
-      
-      return combinedData;
-    } catch (error) {
-      console.error("Error using default alphabet:", error);
+    // If no user data, return default alphabet
+    if (userData.length === 0) {
+      return defaultData;
     }
     
-    // Fallback to just user data if no defaults available
-    return userData;
+    // Combine user data with defaults for letters not trained by user
+    const userLetters = userData.map(item => item.letter);
+    const combinedData = [...userData];
+    
+    defaultData.forEach(defaultItem => {
+      if (!userLetters.includes(defaultItem.letter)) {
+        combinedData.push(defaultItem);
+      }
+    });
+    
+    return combinedData;
   } catch (error) {
     console.error("Error in getCombinedTrainingDataSync:", error);
     return [];
@@ -175,9 +203,11 @@ export const getCombinedTrainingDataSync = (): TrainingData[] => {
 /**
  * Clear all training data
  */
-export const clearTrainingData = (): void => {
+export const clearTrainingData = (language?: SignLanguage): void => {
   try {
-    localStorage.removeItem(TRAINING_DATA_KEY);
+    const activeLanguage = language || getActiveSignLanguage();
+    const storageKey = getStorageKey(activeLanguage);
+    localStorage.removeItem(storageKey);
   } catch (error) {
     console.error("Error clearing training data:", error);
   }
