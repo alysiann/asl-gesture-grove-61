@@ -114,11 +114,11 @@ export function landmarksToFeatureVector(landmarks: number[][]): number[] {
 
 // Monkey patch the original recognizeASLLetter to use our new function
 // This allows us to not modify the original handUtils.ts file
-const originalFunction = originalRecognizeASLLetter;
-(window as any).__originalRecognizeASLLetter = originalFunction;
-
-// Replace the original function with our new one that supports languages
 export const monkeyPatchHandUtils = () => {
+  const originalFunction = originalRecognizeASLLetter;
+  (window as any).__originalRecognizeASLLetter = originalFunction;
+
+  // Replace the original function with our new one that supports languages
   (window as any).recognizeASLLetter = (predictions: any, language?: SignLanguage) => {
     return recognizeSignLanguageLetter(predictions, language);
   };

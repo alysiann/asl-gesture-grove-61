@@ -131,7 +131,7 @@ const Recognize: React.FC = () => {
           
           <Webcam 
             onHandDetected={handleHandDetection}
-            onLetterRecognized={handleLetterRecognized}
+            onLetterRecognized={handleLetterRecognition}
             signLanguage={activeLanguage}
           />
           

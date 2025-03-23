@@ -1,10 +1,7 @@
-import React, { useRef, useEffect } from 'react';
-import dynamic from 'next/dynamic';
 
-const HandDetectionComponent = dynamic(() => import('@/components/HandDetection'), {
-  ssr: false,
-  loading: () => <p>Loading Hand Detection...</p>
-});
+import React, { useRef, useEffect, lazy, Suspense } from 'react';
+
+const HandDetectionComponent = lazy(() => import('@/components/HandDetection'));
 
 interface WebcamProps {
   onHandDetected?: (isDetected: boolean) => void;
@@ -47,14 +44,16 @@ const Webcam: React.FC<WebcamProps> = ({ onHandDetected, onLetterRecognized, onF
         autoPlay
         muted
       />
-      <HandDetectionComponent
-        webcamRef={webcamRef}
-        onHandDetected={onHandDetected}
-        onLetterRecognized={onLetterRecognized}
-        onFeatureExtracted={onFeatureExtracted}
-        trainingMode={trainingMode}
-        signLanguage={signLanguage}
-      />
+      <Suspense fallback={<p>Loading Hand Detection...</p>}>
+        <HandDetectionComponent
+          webcamRef={webcamRef}
+          onHandDetected={onHandDetected}
+          onLetterRecognized={onLetterRecognized}
+          onFeatureExtracted={onFeatureExtracted}
+          trainingMode={trainingMode}
+          signLanguage={signLanguage}
+        />
+      </Suspense>
     </div>
   );
 };
